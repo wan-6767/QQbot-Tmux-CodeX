@@ -1,4 +1,4 @@
-# QQ Tmux Relay
+# QQbot-Tmux
 
 **把服务器里正在运行的终端，接进 QQ。**
 
@@ -55,6 +55,9 @@ Bot：退出转发，服务器上的任务仍然运行
 在仓库根目录，以运行tmux的**普通用户**执行：
 
 ```bash
+git clone https://github.com/Wan-zone/QQbot-Tmux.git
+cd QQbot-Tmux
+
 # 已有会话时不必创建；这里仅演示一个新工作会话。
 tmux new-session -d -s work
 

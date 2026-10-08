@@ -12,6 +12,10 @@ license = "MIT"
 authors = [{name = "Wan-zone"}]
 dependencies = []
 
+[project.urls]
+Repository = "https://github.com/Wan-zone/QQbot-Tmux"
+Issues = "https://github.com/Wan-zone/QQbot-Tmux/issues"
+
 [project.scripts]
 qq-tmux-bridge = "tmux_bot.bridge:main"
 
