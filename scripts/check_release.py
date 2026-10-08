@@ -38,14 +38,14 @@ def check(root, indexed=False):
                 entries.append((Path(name), mode, object_id, stage))
     else:
         entries = [(path.relative_to(root), None, None, "0") for path in root.rglob("*") if path.is_file()
-                   and not set(path.relative_to(root).parts) & {".git", "instances", "__pycache__", ".venv", "dist", "build"}]
+                   and not set(path.relative_to(root).parts) & {".git", "instances", "backups", "__pycache__", ".venv", "dist", "build", "node_modules", "test-results", "playwright-report"}]
     failures = []
     for name, mode, object_id, stage in entries:
         if stage != "0":
             failures.append(str(name) + ": unresolved Git index entry")
             continue
         if (name.name in PRIVATE_NAME or (name.name.startswith(".env") and name.name != ".env.example")
-                or name.suffix == ".env" or "instances" in name.parts
+                or name.suffix == ".env" or set(name.parts) & {"instances", "backups", "node_modules", "test-results", "playwright-report"}
                 or name.suffix in {".sqlite3", ".db", ".log", ".pem", ".key", ".jsonl", ".zip", ".bak"}):
             failures.append(str(name) + ": private runtime file")
             continue

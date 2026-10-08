@@ -6,6 +6,12 @@
 
 适合从手机查看长任务进度、补充指令、操作模型选择菜单，以及用多个 QQ 机器人分别连接多个工作窗格。
 
+[从零接入](docs/getting-started.md) · [使用手册](docs/usage.md) · [故障排查](docs/troubleshooting.md) · [运行维护](docs/operations.md) · [安全说明](SECURITY.md)
+
+![QQbot-Tmux 接入工作台](site/assets/workbench.png)
+
+仓库自带可直接打开的 [接入工作台](site/index.html)：从注册 QQ bot、配置服务器到绑定验收，生成对应实例的部署命令；也可搜索指令、检查接入进度。页面不读取 AppSecret，不接入终端，不收集遥测。GitHub 文件预览不会执行页面，下载仓库后用浏览器打开 `site/index.html`；在线发布方式见 [维护文档](docs/operations.md#产品介绍页)。
+
 ## 交互是什么样的
 
 ```text
@@ -165,6 +171,8 @@ QQ回显 ← 持久化投递队列 ← 段落/菜单/噪音识别 ← 屏幕采�
 | `vendor/` | QQ适配器快照和上游许可证，不含Hermes私人功能 |
 | `scripts/` | 实例初始化、绑定口令及发布检查 |
 | `tests/` | 可销毁tmux、路由、互斥、段落、错误及QQ投递回归 |
+| `site/` | 静态接入工作台、产品介绍、指令检索与浏览器回归 |
+| `docs/` | 注册接入、使用、排障、升级备份与发布 |
 | `instances/` | 本地运行数据，初始化时生成，绝不提交 |
 
 QQ容器只挂载自身数据目录。宿主桥接以tmux拥有者运行，不挂载Docker socket，不监听公网，不从QQ请求中接受任意桥接地址。

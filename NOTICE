@@ -10,3 +10,7 @@ Upstream: https://github.com/NousResearch/hermes-agent
 The runtime image is pinned by digest. It supplies QQ SDK dependencies only;
 the project's entrypoint does not launch Hermes Gateway, AIAgent, cron, or an LLM.
 tmux and Docker are external dependencies and retain their own licenses.
+
+The static product guide bundles Lucide 1.53.0 icons, distributed under the
+ISC license with MIT-licensed Feather-derived icons. The complete notice is
+preserved in site/assets/LUCIDE_LICENSE.

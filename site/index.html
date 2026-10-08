@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#16755d">
+  <meta name="description" content="QQbot-Tmux：通过 QQ 操作你现有的 tmux 终端。注册、部署、绑定和使用的一站式接入工作台。">
+  <title>QQbot-Tmux · 接入工作台</title>
+  <link rel="icon" href="assets/mark.png">
+  <link rel="stylesheet" href="styles.css">
+  <script defer src="assets/lucide.min.js"></script>
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">跳转到内容</a>
+  <aside class="sidebar" aria-label="主导航">
+    <a class="brand" href="#overview" aria-label="QQbot-Tmux 产品概览">
+      <span class="brand-mark"><i data-lucide="terminal" aria-hidden="true"></i></span>
+      <span>QQbot-Tmux<small>你的终端，随身在线</small></span>
+    </a>
+    <div class="nav-caption">WORKSPACE</div>
+    <nav>
+      <a href="#setup" data-view="setup"><i data-lucide="plug-zap" aria-hidden="true"></i>接入工作台</a>
+      <a href="#overview" data-view="overview"><i data-lucide="panels-top-left" aria-hidden="true"></i>产品概览</a>
+      <a href="#commands" data-view="commands"><i data-lucide="square-terminal" aria-hidden="true"></i>指令手册</a>
+      <a href="#operations" data-view="operations"><i data-lucide="activity" aria-hidden="true"></i>运行维护</a>
+      <a href="#troubleshooting" data-view="troubleshooting"><i data-lucide="circle-help" aria-hidden="true"></i>故障排查</a>
+      <a href="#security" data-view="security"><i data-lucide="shield-check" aria-hidden="true"></i>安全边界</a>
+    </nav>
+    <div class="sidebar-footer">
+      <a href="https://github.com/Wan-zone/QQbot-Tmux" target="_blank" rel="noopener noreferrer"><i data-lucide="github" aria-hidden="true"></i>GitHub<i data-lucide="arrow-up-right" aria-hidden="true"></i></a>
+      <div>v0.1.0 <span>MIT License</span></div>
+    </div>
+  </aside>
+  <div class="shell">
+    <header class="topbar">
+      <div><span class="topbar-product">QQbot-Tmux</span><span class="separator">/</span><span id="breadcrumb">接入工作台</span></div>
+      <a href="https://q.qq.com/" target="_blank" rel="noopener noreferrer">QQ 开放平台<i data-lucide="arrow-up-right" aria-hidden="true"></i></a>
+    </header>
+    <main id="main" tabindex="-1"></main>
+    <footer class="page-footer"><span>QQbot-Tmux · 开源终端转发工具</span><span>不调用大模型 · 不收集密钥</span></footer>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <noscript><p>接入工作台需要 JavaScript。完整文字版见仓库 docs/getting-started.md。</p></noscript>
+</body>
+</html>

@@ -1,0 +1,14 @@
+{
+  "name": "qqbot-tmux-guide",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node tests/smoke.mjs",
+    "build": "node build.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.64.0",
+    "lucide": "1.53.0"
+  }
+}

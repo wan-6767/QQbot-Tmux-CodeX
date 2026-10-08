@@ -115,6 +115,21 @@ class ReleaseTests(unittest.TestCase):
                 self.assertTrue(check_release.check(root))
                 path.unlink()
 
+    def test_generated_site_and_backup_files_cannot_be_published(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+            for name in ("backups/private.txt", "site/node_modules/package/index.js",
+                         "site/test-results/screenshot.png", "site/playwright-report/index.html"):
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("fixture")
+                self.assertFalse(check_release.check(root))
+                subprocess.run(["git", "add", str(path)], cwd=root, check=True)
+                self.assertTrue(check_release.check(root, indexed=True))
+                subprocess.run(["git", "rm", "--cached", str(path)], cwd=root,
+                               check=True, stdout=subprocess.DEVNULL)
+
 
 if __name__ == "__main__":
     unittest.main()
