@@ -1,0 +1,12 @@
+QQ Tmux Relay
+Copyright (c) 2026 Wan-zone
+
+This project reuses the QQ platform adapter and runtime types from
+Hermes Agent by Nous Research, licensed under the MIT License.
+The adapter snapshot is vendor/hermes_qq_adapter.py; its upstream license is
+preserved in vendor/HERMES_LICENSE.
+Upstream: https://github.com/NousResearch/hermes-agent
+
+The runtime image is pinned by digest. It supplies QQ SDK dependencies only;
+the project's entrypoint does not launch Hermes Gateway, AIAgent, cron, or an LLM.
+tmux and Docker are external dependencies and retain their own licenses.

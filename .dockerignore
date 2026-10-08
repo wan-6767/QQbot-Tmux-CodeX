@@ -1,0 +1,11 @@
+.git
+instances
+.env
+.env.*
+!.env.example
+dist
+build
+__pycache__
+**/__pycache__
+*.egg-info
+.venv

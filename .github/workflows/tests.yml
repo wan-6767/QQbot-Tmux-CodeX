@@ -1,0 +1,17 @@
+name: Tests
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check source-only release
+        run: python3 scripts/check_release.py --indexed
+      - name: Build isolated test image
+        run: docker build --target test -t qq-tmux-relay-test .
+      - name: Test native QQ routing and disposable tmux servers
+        run: docker run --rm --network none qq-tmux-relay-test

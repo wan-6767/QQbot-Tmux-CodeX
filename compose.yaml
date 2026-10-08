@@ -1,0 +1,22 @@
+services:
+  bot:
+    build:
+      context: .
+      target: runtime
+    network_mode: host
+    restart: unless-stopped
+    user: "${BOT_UID:-1000}:${BOT_GID:-1000}"
+    stop_grace_period: 20s
+    env_file:
+      - "${BOT_ENV_FILE:?Run scripts/manage.py init first}"
+    environment:
+      TMUX_BOT_NAME: "${BOT_NAME:-QQ Tmux}"
+      TMUX_BRIDGE_URL: "http://127.0.0.1:${BRIDGE_PORT:-18010}"
+    volumes:
+      - "${BOT_DATA_DIR:?Run scripts/manage.py init first}:/opt/data"
+    healthcheck:
+      test: ["CMD", "/opt/hermes/.venv/bin/python", "-B", "-c", "import json,time; h=json.load(open('/opt/data/health.json')); assert h['connected'] and time.time()-h['heartbeat_at']<45"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 45s
