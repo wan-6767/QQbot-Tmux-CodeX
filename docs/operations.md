@@ -37,9 +37,13 @@ systemctl --user start qq-tmux-bridge-default.service
 
 上例中的 `backups/` 已被忽略。升级验证失败，停止新版本，切回旧提交或镜像，并恢复一致的实例备份；已成功输入终端的命令不能通过代码回滚撤销。不要盲目覆盖仍在运行的数据库，也不要删除所有者绑定来“修复”连接。
 
-## 产品介绍页
+## 离线接入助手（可选）
 
-`site/index.html` 是静态接入工作台，可以直接用浏览器打开，无需bot服务或大模型。它只保存实例名、端口和手动勾选的接入进度，不请求AppSecret、不连接终端、不做自动安装、不收集遥测。
+产品介绍与接入教程统一在 GitHub 的 [README](../README.md) 和 `docs/` 阅读，不需要部署独立网站。
+
+`site/index.html` 是可选的离线接入助手，可以直接用浏览器打开，无需bot服务、大模型、Node.js 或网页服务器。它只保存实例名、端口和手动勾选的接入进度，不请求AppSecret、不连接终端、不做自动安装、不收集遥测。
+
+仅开发和测试此助手时需要 Node.js：
 
 ```bash
 npm --prefix site ci
@@ -48,7 +52,7 @@ npm --prefix site test
 npm --prefix site run build
 ```
 
-构建只导出页面资源到 `dist/site/`，不复制任何 `instances/` 或服务器配置。发布GitHub Pages时，仓库管理员先在 Settings → Pages 将Source选择GitHub Actions，再手动运行 `Product Site` 工作流。普通push只做页面测试并生成可发布artifact；启用Pages后手动发布，避免没有开通时假报网站已上线。流程依据 [GitHub官方说明](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages)。
+构建只导出离线资源到 `dist/site/`，不复制任何 `instances/` 或服务器配置。`Guide Checks` 工作流仅执行浏览器回归、构建并保存离线 artifact，没有 Pages 部署任务或网站发布权限。
 
 ## 发布检查
 

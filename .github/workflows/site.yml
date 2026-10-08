@@ -1,8 +1,7 @@
-name: Product Site
+name: Guide Checks
 on:
   push:
   pull_request:
-  workflow_dispatch:
 permissions:
   contents: read
 jobs:
@@ -25,35 +24,10 @@ jobs:
         working-directory: site
       - uses: actions/upload-artifact@v4
         with:
-          name: product-site
+          name: offline-guide
           path: dist/site
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: browser-screenshots
           path: site/test-results
-  deploy:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    concurrency:
-      group: pages
-      cancel-in-progress: false
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: product-site
-          path: site-output
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v4
-        with:
-          path: site-output
-      - name: Deploy
-        id: deployment
-        uses: actions/deploy-pages@v4

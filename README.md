@@ -1,5 +1,9 @@
 # QQbot-Tmux
 
+[![终端回归](https://github.com/Wan-zone/QQbot-Tmux/actions/workflows/tests.yml/badge.svg)](https://github.com/Wan-zone/QQbot-Tmux/actions/workflows/tests.yml)
+[![接入文档检查](https://github.com/Wan-zone/QQbot-Tmux/actions/workflows/site.yml/badge.svg)](https://github.com/Wan-zone/QQbot-Tmux/actions/workflows/site.yml)
+[MIT License](LICENSE) · Linux · QQ 官方接口 · 不需要模型 API Key
+
 **把服务器里正在运行的终端，接进 QQ。**
 
 不另起一个 AI 会话，不让模型代按键。选择现有 tmux 窗格后，QQ 消息直接输入终端；终端里的 Codex、shell 或其他程序继续在原来的会话中运行。项目本身不调用大模型，也不需要模型 API Key。
@@ -8,11 +12,19 @@
 
 [从零接入](docs/getting-started.md) · [使用手册](docs/usage.md) · [故障排查](docs/troubleshooting.md) · [运行维护](docs/operations.md) · [安全说明](SECURITY.md)
 
-![QQbot-Tmux 接入工作台](site/assets/workbench.png)
+## 从这里开始
 
-仓库自带可直接打开的 [接入工作台](site/index.html)：从注册 QQ bot、配置服务器到绑定验收，生成对应实例的部署命令；也可搜索指令、检查接入进度。页面不读取 AppSecret，不接入终端，不收集遥测。GitHub 文件预览不会执行页面，下载仓库后用浏览器打开 `site/index.html`；在线发布方式见 [维护文档](docs/operations.md#产品介绍页)。
+| 你想做什么 | 阅读入口 |
+| --- | --- |
+| 第一次用：注册 QQ bot、配置凭据、部署并绑定 | [从零接入](docs/getting-started.md) |
+| 已经部署：选终端、输入消息、操作菜单、查看输出 | [使用手册](docs/usage.md) · [指令速查](#指令速查) |
+| 多个 bot 在同一群分别连接不同终端 | [群聊接入](docs/getting-started.md#6-可选在群里使用) · [多 bot 部署](docs/getting-started.md#7-可选多个-bot) |
+| 不回复、没有新增输出、输入状态不明 | [故障排查](docs/troubleshooting.md) |
+| 升级、备份、回滚，或了解操作权限 | [运行维护](docs/operations.md) · [安全说明](SECURITY.md) |
 
-## 交互是什么样的
+本文和 `docs/` 就是完整的产品介绍与使用入口，直接在 GitHub 阅读即可，无需另开网站。
+
+## 一次完整交互
 
 ```text
 你：/tmux ls
@@ -38,7 +50,7 @@ Bot：退出转发，服务器上的任务仍然运行
 
 群里每条消息都要 **@对应机器人**。一个机器人同一时刻连接一个窗格；多个机器人可以在同一群工作，但不能同时占用同一个窗格。
 
-## 保留下来的能力
+## 核心能力
 
 - **原会话直连**：支持列表编号、稳定窗格ID和完整 tmux 位置；不创建、关闭或杀死你的工作会话。
 - **持续追加**：进入时任务已在运行也能继续接收；不必再发一句话才开始监听。
@@ -171,11 +183,22 @@ QQ回显 ← 持久化投递队列 ← 段落/菜单/噪音识别 ← 屏幕采�
 | `vendor/` | QQ适配器快照和上游许可证，不含Hermes私人功能 |
 | `scripts/` | 实例初始化、绑定口令及发布检查 |
 | `tests/` | 可销毁tmux、路由、互斥、段落、错误及QQ投递回归 |
-| `site/` | 静态接入工作台、产品介绍、指令检索与浏览器回归 |
+| `site/` | 可选离线接入助手和浏览器回归，不负责网站发布 |
 | `docs/` | 注册接入、使用、排障、升级备份与发布 |
 | `instances/` | 本地运行数据，初始化时生成，绝不提交 |
 
 QQ容器只挂载自身数据目录。宿主桥接以tmux拥有者运行，不挂载Docker socket，不监听公网，不从QQ请求中接受任意桥接地址。
+
+<details>
+<summary>可选：离线接入助手</summary>
+
+下载仓库后，可以用浏览器直接打开 `site/index.html`，生成实例部署命令、搜索指令并手动检查接入进度。不需要安装 Node.js，也不需要运行网页服务器。GitHub 文件预览不会执行 HTML，直接阅读上面的中文文档即可完成部署。
+
+助手不读取 AppSecret、不接入终端、不收集遥测；只在当前浏览器保存非敏感实例名称、端口和手动检查记录。
+
+![离线接入助手实际截图](site/assets/workbench.png)
+
+</details>
 
 ## 测试与发布
 
