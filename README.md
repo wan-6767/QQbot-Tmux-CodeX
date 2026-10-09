@@ -111,7 +111,7 @@ Bot：退出转发，服务器上的任务仍然运行
 
 ## 快速部署
 
-支持 **Linux + Python 3.11及以上 + tmux + Docker Compose v2**。QQ接入使用固定版本的Hermes QQ适配器依赖镜像；只启动本项目的终端入口，**不启动Hermes Agent、Gateway、日记或定时任务**。宿主桥接仅使用Python标准库。
+支持 **Linux + Python 3.11及以上 + tmux + Docker Compose v2**。QQ接入通过固定版本的依赖镜像运行，只启动本项目的机器人入口；**不需要额外部署Agent服务，不调用大模型，不运行秘书、日记或计划流程**。宿主桥接仅使用Python标准库。
 
 先在 [QQ机器人开放平台](https://q.qq.com/) 创建机器人，取得AppID和AppSecret，并按平台要求配置测试成员、私聊或群聊使用范围。服务器无法绕过QQ平台的审核、可用范围和主动消息权限。
 
@@ -253,7 +253,7 @@ QQ回显 ← 持久化投递队列 ← 段落/菜单/噪音识别 ← 屏幕采�
 | `src/tmux_bot/qq_commands.py` | 斜杠映射和本人输入框面板 |
 | `src/tmux_bot/terminal_files.py`、`files.py` | 上传索引、宿主缓存校验、下载快照和精确清理 |
 | `deploy/` | Compose、空凭据及SSH配置示例 |
-| `vendor/` | QQ适配器快照和上游许可证，不含Hermes私人功能 |
+| `vendor/` | QQ接口适配代码快照和第三方许可证 |
 | `scripts/` | 实例初始化、绑定口令及发布检查 |
 | `tests/` | 可销毁tmux、路由、互斥、段落、错误及QQ投递回归 |
 | `docs/guide/` | 可选离线接入助手和浏览器回归，不负责网站发布 |
@@ -281,7 +281,7 @@ docker build --target test -t qq-tmux-relay-test .
 docker run --rm --network none qq-tmux-relay-test
 ```
 
-测试创建独立tmux socket，不碰现有工作窗格；QQ传输使用可控响应，不会给真实聊天发送测试消息。CI执行相同命令。由Hermes日记插件专属钩子产生的测试没有带入本仓库，终端和投递行为仍保留回归覆盖。
+测试创建独立tmux socket，不碰现有工作窗格；QQ传输使用可控响应，不会给真实聊天发送测试消息。CI执行相同命令。测试覆盖终端转发、文件收发、额度查询与本人授权，不包含私人秘书或日记业务。
 
 ## 必须知道的限制
 
@@ -294,4 +294,4 @@ docker run --rm --network none qq-tmux-relay-test
 
 ## 许可与致谢
 
-采用 [MIT License](LICENSE)。QQ接入复用 [Hermes Agent](https://github.com/NousResearch/hermes-agent) 的QQ适配器和固定运行依赖，保留 [上游许可证](vendor/HERMES_LICENSE) 与 [NOTICE](NOTICE)。终端会话由tmux提供，QQ平台能力由腾讯QQ机器人官方接口提供。
+采用 [MIT License](LICENSE)。第三方组件的来源、版权与许可说明保留在 [NOTICE](NOTICE) 和 `vendor/`，当前运行依赖见 [架构说明](docs/architecture.md#运行依赖与业务独立性)。终端会话由tmux提供，QQ平台能力由腾讯QQ机器人官方接口提供。
