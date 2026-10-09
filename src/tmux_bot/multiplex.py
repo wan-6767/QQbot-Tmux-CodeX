@@ -20,8 +20,9 @@ HELP = """## 多终端转发
 | 指令 | 用途 |
 | --- | --- |
 | `/tmux sel 001 ent` | 接入，返回最近100行并持续追加 |
-| `/tmux sel 001 文字` | 输入文字并回车 |
-| `/tmux sel 001 /model` | 输入终端程序的命令 |
+| `/tmux sel 001 send 文字` | 原样输入文字并回车 |
+| `/tmux sel 001 send /model` | 向终端发送程序命令 |
+| `/tmux sel 001 send /goal resume` | 向终端发送goal指令 |
 | `/tmux sel 001 key enter` | 回车确认 |
 | `/tmux sel 001 key up` | 上方向键 |
 | `/tmux sel 001 type 文字` | 只输入，不回车 |
@@ -38,13 +39,14 @@ ctrl-c 可能中断任务；ent 是接入，不是回车。
 编号001–999固定对应实际窗格，不是当前列表排序。窗格关闭后旧编号失效，不会自动指向另一个终端。
 每个连接独立追加、重试和恢复；双方30分钟无消息仅断开该连接。
 所有输入都要带编号；不再使用旧版 select/exit 或无编号输入。
+发送内容使用send；例如`/model`需写成`/tmux sel 001 send /model`，不能直接发给bot。
 群里每条指令都需 @本 bot，只有绑定本人可操作，输出全群可见。
 私聊 /group bind、/group status、/group unbind 管理群绑定。
 文件/图片/语音上传后返回本机绝对路径，不自动输入终端。
 `/file dl /绝对路径` 下载本机普通文件（最多100 MiB）；`/file rm` 只清理本bot接收的缓存。
 路径仅属于本机，远端需自行scp；群收发仍要求绑定本人的@消息。
 `/sub2api usage` 刷新并查看本机账号额度及积分（可选插件）。
-不调用模型，不提供Hermes秘书功能。"""
+不调用模型，发送内容直接交给对应终端。"""
 
 
 def parse(text):
@@ -53,7 +55,7 @@ def parse(text):
         return "help", "", ""
     if value.lower() == "/tmux ls":
         return "list", "", ""
-    guidance = "格式：/tmux sel 001 ent｜文字｜key enter｜tail 100｜ext；也可 /tmux tail 100 sel 001。"
+    guidance = "格式：/tmux sel 001 send 内容；其他操作：ent、type 内容、key enter、tail N、ext。/tmux help 查看详情。"
     match = re.fullmatch(r"/tmux\s+sel\s+([0-9]{3})\s+([\s\S]+)", value, re.I)
     if match:
         channel, body = match[1], match[2].strip()

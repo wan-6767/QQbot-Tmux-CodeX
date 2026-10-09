@@ -14,8 +14,8 @@ from unittest.mock import AsyncMock, patch
 from gateway.config import Platform
 from tmux_bot import owner
 from tmux_bot.bridge import PaneLocks, Relay, RelayError, Tmux, normalize_key, KEY_NAMES
-from tmux_bot.multiplex import MultiRelay, parse
-from tmux_bot.multi_relay import Channel, MultiGateway
+from tmux_bot.multiplex import MultiRelay, parse, HELP as TMUX_HELP
+from tmux_bot.multi_relay import Channel, MultiGateway, HELP as BOT_HELP
 from tmux_bot.remote import load_hosts, RemoteTmux, TmuxFleet, worker_source
 from test_relay import TmuxFixture, MENU, TOOL_RECORDS
 
@@ -23,6 +23,20 @@ SOURCE = {"chat_id": "owner", "user_id": "owner", "chat_type": "dm"}
 
 
 class ModularCommandTests(unittest.TestCase):
+    def test_send_is_visible_in_help_and_invalid_bare_command_guidance(self):
+        for help_text in (TMUX_HELP, BOT_HELP):
+            self.assertIn("/tmux sel 001 send 文字", help_text)
+        self.assertIn("/tmux sel 001 send /goal resume", TMUX_HELP)
+        with self.assertRaises(RelayError) as caught:
+            parse("/goal resume")
+        self.assertIn("/tmux sel 001 send 内容", str(caught.exception))
+
+    def test_send_preserves_terminal_slash_commands_and_multiline_body(self):
+        for body in ("/goal resume", "/model", "/permissions", "两行\n/goal resume"):
+            with self.subTest(body=body):
+                self.assertEqual(parse("/tmux sel 008 send " + body), ("send", "008", body))
+                self.assertEqual(parse("/tmux send " + body + " sel 008"), ("send", "008", body))
+
     def test_target_and_operation_modules_can_exchange_order(self):
         for body, expected in (("ent", ("ent", "001", "")), ("ext", ("ext", "001", "")),
                 ("tail 250", ("tail", "001", "250")), ("tail100", ("tail", "001", "100")),
@@ -217,6 +231,14 @@ class MultiBridgeTests(TmuxFixture):
         self.assertTrue(snap["initial_context"])
         self.assertLessEqual(len(snap["screen"].splitlines()), 100)
         self.assertIn("001 · relay-test", snap["target"])
+
+    def test_send_slash_command_reaches_only_the_target_as_literal_text(self):
+        self.route("/tmux sel 001 ent")
+        self.route("/tmux sel 002 ent")
+        result = self.route("/tmux sel 001 send /goal resume", "send-goal-fixture")
+        self.assertTrue(result["submitted"])
+        self.wait_for("ECHO:/goal resume")
+        self.assertNotIn("/goal resume", self.tmux.capture("%1"))
 
     def test_reversed_modules_work_on_real_tmux_and_tail_is_raw(self):
         self.assertTrue(self.route("/tmux ent sel 001")["active"])

@@ -73,7 +73,7 @@ def main():
                 response = relay.route(f"/tmux sel {number} ent", "enter-" + number, source)
                 assert response["active"] and name in response["target"]
                 marker = "测试-" + secrets.token_hex(5) + "-$(touch NEVER_RUN);'"
-                response = relay.route(f"/tmux sel {number} {marker}", "input-" + number, source)
+                response = relay.route(f"/tmux sel {number} send {marker}", "input-" + number, source)
                 assert response["submitted"]
                 deadline = time.monotonic() + 15
                 while time.monotonic() < deadline:
@@ -83,7 +83,7 @@ def main():
                     time.sleep(.1)
                 else:
                     raise AssertionError("real terminal did not receive the literal payload")
-                duplicate = relay.route(f"/tmux sel {number} {marker}", "input-" + number, source)
+                duplicate = relay.route(f"/tmux sel {number} send {marker}", "input-" + number, source)
                 assert duplicate["duplicate"]
                 assert relay.screen(number, response["epoch"])["screen"].count("received: " + json.dumps(marker, ensure_ascii=False)) == 1
             relay.route(f"/tmux sel {numbers['local']} ext", "leave-local", source)

@@ -15,7 +15,7 @@ from urllib.parse import quote
 PANEL_REMARK = "qq-tmuxbot-shortcuts-v1"
 COMMANDS = (
     ("/tmux ls", "查看本地和远端终端编号", "#tmux ls"),
-    ("/tmux sel", "指定编号，再填ent、ext或消息", "#tmux sel"),
+    ("/tmux sel", "指定编号，再填ent、send或ext", "#tmux sel"),
     ("/tmux list100", "查看最近100行完整上下文", "#tmux list100"),
     ("/tmux exit", "退出终端选择模式", "#tmux exit"),
     ("/tmux help", "查看终端操作帮助", "#tmux help"),

@@ -48,7 +48,7 @@ systemctl --user restart qq-tmux-bridge-default.service
 ```text
 /tmux ls
 /tmux sel 012 ent
-/tmux sel 012 检查训练进度
+/tmux sel 012 send 检查训练进度
 /tmux sel 012 tail 100
 /tmux sel 012 ext
 ```

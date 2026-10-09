@@ -39,10 +39,10 @@ Bot：列出当前 tmux 窗格及占用情况
 你：/tmux sel 001 ent
 Bot：一次返回最近约 100 行上下文
 
-你：/tmux sel 001 检查刚才的修改，并运行测试
+你：/tmux sel 001 send 检查刚才的修改，并运行测试
 Bot：后续新增的完整说明和回答，按段落自动追加
 
-你：/tmux sel 001 /model
+你：/tmux sel 001 send /model
 Bot：完整显示模型选择菜单
 你：/tmux sel 001 key down
 你：/tmux sel 001 key enter
@@ -54,7 +54,7 @@ Bot：完整终端快照，包括默认隐藏的工具操作日志
 Bot：退出转发，服务器上的任务仍然运行
 ```
 
-群里每条指令都要 **@对应机器人**。同一个bot可同时连接多个窗格，各自独立追加、重试和断开。所有回显带 `[001 · local · work:0.0]` 或远程服务器标签。多个bot仍不能同时占用同一窗格。
+群里每条指令都要 **@对应机器人**。同一个bot可同时连接多个窗格，各自独立追加、重试和断开。所有回显带 `[001 · local · work:0.0]` 或远程服务器标签；`work:0.0`是tmux的会话名、窗口编号和窗格编号，前面的001才是bot固定编号。多个bot仍不能同时占用同一窗格。
 
 ## 核心能力
 
@@ -201,8 +201,9 @@ python3 scripts/manage.py pairing second
 | `/file help` | 文件收发与清理帮助 |
 | `/tmux ls` | 列出窗格及占用者 |
 | `/tmux sel 001 ent` | 接入或重连这一窗格，返回100行 |
-| `/tmux sel 001 文字` | 原样输入并回车 |
-| `/tmux sel 001 /model` | 输入终端程序命令 |
+| `/tmux sel 001 send 文字` | 原样输入并回车 |
+| `/tmux sel 001 send /model` | 输入终端程序命令 |
+| `/tmux sel 001 send /goal resume` | 原样发送goal指令 |
 | `/tmux sel 001 type 文字` | 只输入，不回车 |
 | `/tmux sel 001 send ent` | 将保留词ent作为文字输入 |
 | `/tmux sel 001 key enter` | 发送一个按键 |

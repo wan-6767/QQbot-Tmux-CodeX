@@ -8,8 +8,8 @@
 /tmux ls
 /tmux sel 001 ent
 /tmux sel 002 ent
-/tmux sel 001 检查这个项目的测试结果
-/tmux sel 002 /model
+/tmux sel 001 send 检查这个项目的测试结果
+/tmux sel 002 send /model
 /tmux sel 002 key down
 /tmux sel 002 key enter
 /tmux sel 001 tail 100
@@ -20,6 +20,8 @@
 
 回显标注 `[001 · local · work:0.0]` 或 `[012 · research · train:0.1]`。每个编号独立拥有连接、发送目的地、增量基线、失败队列和计时；退出001不影响002，不停止终端任务。
 
+标签中的`会话名:窗口编号.窗格编号`是tmux原生位置，例如`work:1.1`。不同会话各自拥有编号1的窗口和窗格，因此后缀可以相同；bot的固定编号仍不同。tmux的起始编号取决于自身配置，可能从0或1开始。
+
 ## 指令速查
 
 | 指令 | 行为 |
@@ -29,8 +31,9 @@
 | `/file help` | 文件收发详细帮助 |
 | `/tmux ls` | 本地及远程窗格、固定编号、连接及占用状态 |
 | `/tmux sel 001 ent` | 接入，先返回最近约100行，再持续追加 |
-| `/tmux sel 001 文字` | 原样输入并回车 |
-| `/tmux sel 001 /model` | 交给指定终端的程序命令 |
+| `/tmux sel 001 send 文字` | 原样输入并回车 |
+| `/tmux sel 001 send /model` | 交给指定终端的程序命令 |
+| `/tmux sel 001 send /goal resume` | 原样发送goal指令 |
 | `/tmux sel 001 type 文字` | 输入但不回车 |
 | `/tmux sel 001 key enter` | 回车确认 |
 | `/tmux sel 001 key up` | 方向键，每次一键 |
@@ -39,13 +42,13 @@
 | `/tmux sel 001 ext` | 仅断开这一连接，任务继续运行 |
 | `/group bind`、`/group status`、`/group unbind` | 私聊管理群绑定 |
 
-目标`sel 001`与操作可交换：`/tmux ent sel 001`、`/tmux tail 250 sel 001`、`/tmux key up sel 001`，模块内部不能打乱。普通文字用目标在前，或显式`send 文字 sel 001`。
+目标`sel 001`与操作可交换：`/tmux ent sel 001`、`/tmux tail 250 sel 001`、`/tmux key up sel 001`，模块内部不能打乱。发送内容统一使用`send`，例如`/tmux sel 001 send 文字`，或`/tmux send 文字 sel 001`。
 
 tail N支持1–5000行，tail100也可识别，历史不足返回已有内容。旧list100拒绝执行并提示新格式，不输入终端。
 
 按键支持字母/数字/标点、F1–F24、方向/编辑/翻页键及Ctrl/Alt/Shift组合，例如`ctrl+c`、`shift+tab`、`alt+enter`、`ctrl+shift+left`。详见[键盘映射](keyboard.md)。一次一键，不支持重复次数。Ctrl+C可能中断任务，Ctrl+D可能结束程序。
 
-`ent`是接入，回车是`key enter`；`ext`是断开，不是退出程序。`ent/ext/tail`以及`key/type/send`是保留操作；作为文字输入时加`send`前缀。
+`ent`是接入，回车是`key enter`；`ext`是断开，不是退出程序。`send 内容`原样输入并回车，`type 内容`只输入不回车。终端程序指令也作为内容发送：裸`/goal resume`会被bot拒绝，应使用`/tmux sel 编号 send /goal resume`。
 
 新版不再执行旧`/tmux select 1`、`/tmux exit`、无编号普通文字或裸`/model`，避免发进错误终端。所有终端输入必须有编号，公开指令统一以`/`开头。
 
@@ -65,7 +68,7 @@ tail N支持1–5000行，tail100也可识别，历史不足返回已有内容�
 
 群里只有绑定本人的@消息可以输入，但输出全群可见。所有窗格共用一个QQ发送额度管理器，窗格变多不增加平台限额；被动窗口耗尽后仍需QQ允许主动消息，服务器不能绕过。修改群绑定前退出该群全部连接。
 
-输入框快捷面板为`/tmux ls`、`/tmux sel`、`/tmux help`；选sel后补完整编号及操作。单独发sel只提示格式，不输入终端。面板只注册本人私聊，群里仍需@bot；客户端同步延迟时可手动发送。
+输入框快捷面板为`/tmux ls`、`/tmux sel`、`/tmux help`；选sel后补完整编号及操作，例如`001 send 文字`。单独发sel只提示格式，不输入终端。面板只注册本人私聊，群里仍需@bot；客户端同步延迟时可手动发送。
 
 上传文件、图片、语音会缓存并返回本机绝对路径，不自动输入终端、不识图、不转写；`/file dl /绝对路径`下载本机文件，`/file rm`精确清理缓存。无需已连接窗格，详见[文件收发](files.md)。远端不能直接读取本机缓存。
 

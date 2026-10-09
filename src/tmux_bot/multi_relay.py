@@ -22,7 +22,7 @@ logger = logging.getLogger("qq_tmuxbot.multi")
 HELP = """## QQbot-Tmux
 
 **终端** · `/tmux ls` 查看编号，`/tmux help` 查看操作。
-接入：`/tmux sel 001 ent`；发送：`/tmux sel 001 文字`；退出：`/tmux sel 001 ext`。
+接入：`/tmux sel 001 ent`；发送：`/tmux sel 001 send 文字`；退出：`/tmux sel 001 ext`。
 
 **文件** · 上传后返回绝对路径，`/file help` 查看详情。
 下载：`/file dl /绝对路径`；清理上传缓存：`/file rm`。

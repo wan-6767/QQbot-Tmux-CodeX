@@ -33,6 +33,6 @@
 组合顺序会规范化；重复修饰符、多个键堆在一起、未知名称及控制字符会拒绝，不能让tmux将错误的键名当普通文本写入。
 
 Ctrl+C可能中断任务，Ctrl+D可能结束程序。通过终端协议发送的是按键序列，不是操作系统物理键盘事件；Fn、音量、亮度、Win/Command等系统键不能保证映射到终端。Shift符号按US布局；扩展组合键是否被区分还取决于tmux版本、TERM及目标程序。
-普通文字和中文仍使用`/tmux sel 001 文字`或`type 文字`，不要用key输入整段话。Enter仍保留粘贴后等待机制，避免TUI把快速回车误判为粘贴的一部分。
+普通文字和中文使用`/tmux sel 001 send 文字`或`type 文字`，不要用key输入整段话。Enter仍保留粘贴后等待机制，避免TUI把快速回车误判为粘贴的一部分。
 
 映射依据：[tmux官方键名与send-keys文档](https://man.openbsd.org/tmux#KEY_BINDINGS)。
