@@ -9,6 +9,7 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[1]
 SECRET = re.compile(r"sk-[a-zA-Z0-9_-]{20,}|-----BEGIN (?:OPENSSH |RSA |EC )?PRIVATE KEY-----")
 PRIVATE_NAME = {"auth.json", "owner.json", "pairing.json", "pairing-instruction.json", "token",
+                "hosts.json",
                 "group.json", "group-pairing.json", "delivery.json", "client.json", "bot.env", "compose.env"}
 SECRET_FIELDS = {"api_key", "access_token", "refresh_token", "client_secret", "qq_client_secret", "appsecret"}
 

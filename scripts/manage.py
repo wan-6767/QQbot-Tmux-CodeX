@@ -81,6 +81,8 @@ def main():
     init.add_argument("--socket", required=True)
     pairing = commands.add_parser("pairing", help="show the one-time owner binding command locally")
     pairing.add_argument("name", nargs="?", default="default")
+    hosts = commands.add_parser("hosts", help="validate local SSH server config without displaying keys")
+    hosts.add_argument("name", nargs="?", default="default")
     args = parser.parse_args()
     try:
         if not re.fullmatch(r"[a-z][a-z0-9-]{0,39}", args.name):
@@ -97,7 +99,11 @@ def main():
             if not (instance / "data/tmux-relay/client.json").is_file():
                 raise ValueError("instance is not initialized")
             os.environ["HERMES_HOME"] = str(instance / "data")
-            if owner.owner_id():
+            if args.command == "hosts":
+                from tmux_bot.remote import load_hosts
+                servers = load_hosts(instance / "data/tmux-relay/hosts.json")
+                print("SSH config validated: " + ", ".join(s["name"] for s in servers))
+            elif owner.owner_id():
                 print("Owner already bound; no pairing command remains.")
             else:
                 owner.prepare_pairing()

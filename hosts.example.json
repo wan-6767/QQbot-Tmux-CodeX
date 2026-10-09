@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "servers": [
+    {
+      "name": "research",
+      "enabled": false,
+      "host": "server.example.com",
+      "port": 22,
+      "user": "youruser",
+      "identity_file": "~/.ssh/id_ed25519",
+      "known_hosts_file": "~/.ssh/known_hosts",
+      "socket": null
+    }
+  ]
+}

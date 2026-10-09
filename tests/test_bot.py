@@ -199,17 +199,18 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         owner.write_private(owner.home() / "group.json", {
             "owner_openid": "owner", "group_openid": "test-group", "member_openid": "test-member"})
         # Exercise SDK _on_message and _ingest, not a fabricated gateway event.
-        with patch.object(app.terminal_relay, "handle", return_value=True) as handle:
-            for index, text in enumerate(("/tmux exit", "/tmux key enter", "@someone literal terminal input")):
+        with patch.object(adapter.gateway, "request", AsyncMock(return_value={"handled": True, "error": True, "message": "fixture"})) as request, \
+                patch.object(adapter, "send", AsyncMock()):
+            for index, text in enumerate(("/tmux sel 001 ext", "/tmux sel 001 key enter", "/tmux sel 001 @someone literal terminal input")):
                 await adapter._on_message("GROUP_AT_MESSAGE_CREATE", {
                     "id": "incoming-" + str(index), "group_openid": "test-group",
                     "author": {"member_openid": "test-member"}, "content": text,
                     "timestamp": "2026-10-07T06:00:00Z"})
-                event = handle.call_args.args[0]
-                self.assertEqual(event.raw_message["content"], text)
-                self.assertEqual(event.source.chat_type, "group")
-                self.assertEqual(event.source.user_id, "test-member")
-            self.assertEqual(handle.call_count, 3)
+                payload = request.call_args.args[1]
+                self.assertEqual(payload["text"], text)
+                self.assertEqual(payload["source"]["chat_type"], "group")
+                self.assertEqual(payload["source"]["user_id"], "test-member")
+            self.assertEqual(request.await_count, 3)
         self.assertEqual(adapter._guess_chat_type("test-group"), "group")
 
     async def test_real_group_event_pipeline_rejects_other_member_before_download(self):
@@ -243,23 +244,19 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         owner.write_private(owner.home() / "group.json", {
             "owner_openid": "owner", "group_openid": "test-group", "member_openid": "test-member"})
         session = {"chat_id": "test-group", "user_id": "test-member", "chat_type": "group"}
-        source = adapter.gateway._terminal_recovery_source(session)
-        self.assertEqual(source.chat_type, "group")
-        self.assertEqual(adapter._guess_chat_type("test-group"), "group")
+        self.assertTrue(adapter.gateway.authorized(session))
         session["user_id"] = "other"
-        self.assertIsNone(adapter.gateway._terminal_recovery_source(session))
+        self.assertFalse(adapter.gateway.authorized(session))
 
-    async def test_group_outbound_counts_only_current_chat(self):
+    async def test_group_outbound_is_scoped_to_explicit_channel_not_global_selection(self):
         adapter = app.TerminalAdapter(PlatformConfig())
-        app.terminal_relay._session.update(chat_id="test-group", chat_type="group", selection_token="selection")
-        with patch.object(app.terminal_relay, "activity_scope", return_value="selection"), \
-                patch.object(app.terminal_relay, "record_activity", AsyncMock()) as activity, \
+        source = {"chat_id": "owner", "user_id": "owner", "chat_type": "dm"}
+        with patch.object(adapter.gateway, "request", AsyncMock(return_value={"recorded": True})) as activity, \
                 patch.object(QQAdapter, "send", AsyncMock(return_value=SimpleNamespace(success=True, message_id="id"))):
             await adapter.send("owner", "private status")
-            activity.assert_awaited_once_with("", "bot:id")
-            activity.reset_mock()
-            await adapter.send("test-group", "terminal output")
-            activity.assert_awaited_once_with("selection", "bot:id")
+            activity.assert_not_awaited()
+            await adapter.gateway.send(source, "terminal output", channel="002", token="selection-002")
+            activity.assert_awaited_once_with("/v2/activity", {"channel": "002", "selection_token": "selection-002", "event_id": "bot:id"})
 
     async def test_group_output_uses_official_group_endpoint(self):
         adapter = app.TerminalAdapter(PlatformConfig(extra={"markdown_support": True}))
@@ -339,7 +336,7 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
                 await self.gateway.dispatch(self.event(text=text))
                 activity.assert_awaited_once_with("selection", "user:fixture-message")
 
-    async def test_successful_plain_keyboard_and_document_messages_count_as_activity(self):
+    async def test_native_sends_do_not_guess_a_channel_for_activity(self):
         adapter = app.TerminalAdapter(PlatformConfig())
         accepted = SimpleNamespace(success=True, message_id="accepted-message")
         for method in ("send", "send_with_keyboard", "send_document"):
@@ -349,7 +346,7 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
                     patch.object(app.terminal_relay, "record_activity", AsyncMock()) as activity, \
                     patch.object(QQAdapter, native_method, AsyncMock(return_value=accepted)):
                 self.assertIs(await getattr(adapter, method)(*args), accepted)
-                activity.assert_awaited_once_with("selection", "bot:accepted-message")
+                activity.assert_not_awaited()
 
     async def test_failed_bot_send_does_not_count_as_activity(self):
         adapter = app.TerminalAdapter(PlatformConfig())
@@ -368,12 +365,11 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         async def send(*args, **kwargs):
             return SimpleNamespace(success=True, message_id="late-message")
 
-        with patch.object(app.terminal_relay, "activity_scope", side_effect=["original", "new-selection"]) as scope, \
-                patch.object(app.terminal_relay, "record_activity", AsyncMock()) as activity, \
+        with patch.object(adapter.gateway, "request", AsyncMock(return_value={"recorded": False})) as activity, \
                 patch.object(QQAdapter, "send", side_effect=send):
-            await adapter.send("owner", "late output")
-        scope.assert_called_once()
-        activity.assert_awaited_once_with("original", "bot:late-message")
+            await adapter.gateway.send({"chat_id": "owner", "user_id": "owner", "chat_type": "dm"},
+                                       "late output", channel="001", token="original")
+        activity.assert_awaited_once_with("/v2/activity", {"channel": "001", "selection_token": "original", "event_id": "bot:late-message"})
 
     async def test_quota_is_intercepted_before_selected_terminal(self):
         with patch.object(app.terminal_relay, "handle") as handle:
@@ -407,8 +403,11 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
             "id": "help-in-group", "group_openid": "test-group",
             "author": {"member_openid": "test-member"}, "content": "/tmux help"})
         text = adapter.send.call_args.args[1]
-        for command in ("select", "key", "type", "send", "list100", "screen", "reconnect", "exit", "help"):
-            self.assertIn("/tmux " + command, text)
+        for command in ("ent", "key enter", "key up", "type 文字", "send ent", "list100", "ext"):
+            self.assertIn("/tmux sel 001 " + command, text)
+        self.assertIn("/tmux ls", text)
+        self.assertNotIn("/tmux select", text)
+        self.assertNotIn("/tmux exit", text)
         self.assertNotIn("#tmux", text)
         self.assertNotIn("#help", text)
 

@@ -107,7 +107,8 @@ class PaneLocks:
         self.held = {}
 
     def _open(self, pane):
-        key = hashlib.sha256((self.namespace + "\0" + pane["identity"]).encode()).hexdigest()
+        namespace = "ssh" if pane.get("server") not in {None, "local"} else self.namespace
+        key = hashlib.sha256((namespace + "\0" + pane["identity"]).encode()).hexdigest()
         return os.open(self.directory / (key + ".lock"), os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
 
     def holder(self, pane):
@@ -147,6 +148,11 @@ class PaneLocks:
             if key != identity:
                 os.close(self.held.pop(key))
 
+    def release(self, identity):
+        fd = self.held.pop(identity, None)
+        if fd is not None:
+            os.close(fd)
+
 
 class Tmux:
     def __init__(self, socket: str | None = None):
@@ -172,8 +178,8 @@ class Tmux:
         output = self.run("list-panes", "-a", "-F", delimiter.join("#{" + f + "}" for f in fields))
         panes = []
         for line in output.splitlines():
-            # tmux renders control separators as octal escapes in formatted output.
-            values = line.split("\\037")
+            # Newer tmux escapes separators; older releases emit the literal byte.
+            values = line.split("\\037") if "\\037" in line else line.split(delimiter)
             if len(values) != len(fields) or values[-1] != "0":
                 continue
             item = dict(zip(fields, values))
@@ -404,7 +410,14 @@ class Relay:
         if self.selected is None:
             raise RelayError("尚未进入终端。发送 /tmux ls 选择窗格。")
         candidate = self.selected
-        for item in self.tmux.panes():
+        if hasattr(self.tmux, "resolve"):
+            resolved = self.tmux.resolve(candidate)
+            if resolved is not None:
+                return resolved
+            candidates = []
+        else:
+            candidates = self.tmux.panes()
+        for item in candidates:
             if item["pane_id"] == candidate["pane_id"] and item["identity"] == candidate["identity"]:
                 return item
         self.disconnected = {"pane": candidate.copy(), "epoch": self.epoch,
@@ -498,6 +511,7 @@ class Relay:
                 except RelayError as exc:
                     result = self._disconnect_notice() if self.disconnected and not self.selected else self._response(str(exc))
                     result["message"] = str(exc)
+                    result["error"] = True
             if message_id:
                 self.cache[message_id] = result
                 while len(self.cache) > 1024:
@@ -668,7 +682,9 @@ def serve(relay: Relay, token: str, port: int) -> None:
                 body = json.loads(self.rfile.read(size))
                 if not isinstance(body, dict):
                     raise ValueError("invalid body")
-                if self.path == "/v1/route":
+                if getattr(relay, "multiplex", False):
+                    result = relay.api(self.path, body)
+                elif self.path == "/v1/route":
                     text = body["text"]
                     message_id = body.get("message_id", "")
                     if not isinstance(text, str) or not isinstance(message_id, str):
@@ -723,13 +739,22 @@ def main():
     parser.add_argument("--port", type=int, default=18010)
     parser.add_argument("--lock-dir", type=Path)
     parser.add_argument("--bot-name", default="终端 bot")
+    parser.add_argument("--hosts-file", type=Path)
     args = parser.parse_args()
     token = args.token_file.read_text().strip()
     if len(token) < 32:
         parser.error("bridge token must be at least 32 characters")
-    pane_locks = PaneLocks(args.lock_dir, args.socket or "default", args.bot_name) if args.lock_dir else None
-    serve(Relay(Tmux(args.socket), usage_file=args.token_file.with_name("usage.json"),
-                state_file=args.token_file.with_name("bridge.sqlite3"), pane_locks=pane_locks), token, args.port)
+    # The ordinary-user systemd service also supports launching this file directly.
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from tmux_bot.bridge import Tmux as RuntimeTmux, PaneLocks as RuntimePaneLocks
+    from tmux_bot.multiplex import MultiRelay
+    from tmux_bot.remote import TmuxFleet, load_hosts
+    pane_locks = RuntimePaneLocks(args.lock_dir, args.socket or "default", args.bot_name) if args.lock_dir else None
+    hosts_file = args.hosts_file or args.token_file.with_name("hosts.json")
+    fleet = TmuxFleet(RuntimeTmux(args.socket), load_hosts(hosts_file), args.token_file.parent / "ssh")
+    serve(MultiRelay(fleet, args.token_file.parent,
+                     pane_locks=pane_locks), token, args.port)
 
 
 if __name__ == "__main__":

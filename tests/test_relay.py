@@ -98,6 +98,16 @@ class TmuxFixture(unittest.TestCase):
 
 
 class RealTmuxTests(TmuxFixture):
+    def test_pane_list_accepts_literal_separators_from_older_tmux(self):
+        original = self.tmux.run
+        def raw_separator(*args, **kwargs):
+            output = original(*args, **kwargs)
+            return output.replace("\\037", "\x1f") if args[0] == "list-panes" else output
+        with patch.object(self.tmux, "run", side_effect=raw_separator):
+            panes = self.tmux.panes()
+        self.assertEqual(len(panes), 1)
+        self.assertEqual(panes[0]["pane_id"], "%0")
+
     def test_unicode_literal_input_screen_and_exit(self):
         self.assertFalse(self.relay.route("普通聊天")["handled"])
         self.enter()
@@ -1915,7 +1925,8 @@ class HttpBridgeTests(TmuxFixture):
         path.write_text(self.token)
         self.process = subprocess.Popen(
             [sys.executable, str(MODULE), "--token-file", str(path), "--socket", self.socket,
-             "--port", str(port)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+             "--port", str(port), "--lock-dir", str(Path(self.temp.name) / "cli-locks")],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         )
         deadline = time.monotonic() + 3
         while time.monotonic() < deadline:
@@ -1934,6 +1945,8 @@ class HttpBridgeTests(TmuxFixture):
         super().tearDown()
 
     def post(self, path, data, token=None):
+        if path == "/v2/route":
+            data = {"source": {"chat_id": "owner", "user_id": "owner", "chat_type": "dm"}, **data}
         request = urllib.request.Request(
             self.url + path, data=json.dumps(data).encode(),
             headers={"Authorization": "Bearer " + (self.token if token is None else token)},
@@ -1942,14 +1955,14 @@ class HttpBridgeTests(TmuxFixture):
             return json.load(response)
 
     def test_authenticated_http_roundtrip_with_real_terminal(self):
-        result = self.post("/v1/route", {"text": "#tmux ls"})
+        result = self.post("/v2/route", {"text": "/tmux ls"})
         self.assertIn("relay-test", result["message"])
-        self.assertTrue(self.post("/v1/route", {"text": "#tmux select 1"})["active"])
-        result = self.post("/v1/route", {"text": "真实中文 HTTP 输入", "message_id": "http-message"})
+        self.assertTrue(self.post("/v2/route", {"text": "/tmux sel 001 ent"})["active"])
+        result = self.post("/v2/route", {"text": "/tmux sel 001 真实中文 HTTP 输入", "message_id": "http-message"})
         self.wait_for("ECHO:真实中文 HTTP 输入")
-        self.assertIn("真实中文", self.post("/v1/screen", {"epoch": result["epoch"]})["screen"])
-        self.assertTrue(self.post("/v1/route", {"text": "真实中文 HTTP 输入", "message_id": "http-message"})["duplicate"])
-        self.assertFalse(self.post("/v1/route", {"text": "#tmux exit"})["active"])
+        self.assertIn("真实中文", self.post("/v2/screen", {"channel": "001", "epoch": result["epoch"]})["screen"])
+        self.assertTrue(self.post("/v2/route", {"text": "/tmux sel 001 真实中文 HTTP 输入", "message_id": "http-message"})["duplicate"])
+        self.assertFalse(self.post("/v2/route", {"text": "/tmux sel 001 ext"})["active"])
 
     def test_missing_or_bad_token_is_denied(self):
         with self.assertRaises(urllib.error.HTTPError) as caught:
@@ -1957,30 +1970,50 @@ class HttpBridgeTests(TmuxFixture):
         self.assertEqual(caught.exception.code, 403)
         caught.exception.close()
 
+    def test_direct_script_handles_real_lock_conflicts_without_module_type_mismatch(self):
+        locks = relay_module.PaneLocks(Path(self.temp.name) / "cli-locks", self.socket, "other-bot")
+        try:
+            locks.acquire(self.tmux.panes()[0])
+            self.post("/v2/route", {"text": "/tmux ls"})
+            result = self.post("/v2/route", {"text": "/tmux sel 001 ent"})
+            self.assertTrue(result["error"])
+            self.assertIn("other-bot", result["message"])
+            self.assertTrue(self.post("/healthz", {})["ok"])
+        finally:
+            locks.release_except()
+        self.assertTrue(self.post("/v2/route", {"text": "/tmux sel 001 ent"})["active"])
+
+    def test_direct_script_handles_tmux_server_disappearance_without_crashing(self):
+        self.tmux.run("kill-server")
+        listing = self.post("/v2/route", {"text": "/tmux ls"})
+        self.assertIn("tmux", listing["message"])
+        self.assertTrue(self.post("/healthz", {})["ok"])
+
     def test_activity_endpoint_is_authenticated_scoped_and_deduplicated(self):
-        entry = self.post("/v1/route", {"text": "#tmux select %0"})
-        body = {"selection_token": entry["selection_token"], "event_id": "bot:accepted"}
+        self.post("/v2/route", {"text": "/tmux ls"})
+        entry = self.post("/v2/route", {"text": "/tmux sel 001 ent"})
+        body = {"channel": "001", "selection_token": entry["selection_token"], "event_id": "bot:accepted"}
         with self.assertRaises(urllib.error.HTTPError) as caught:
-            self.post("/v1/activity", body, token="invalid")
+            self.post("/v2/activity", body, token="invalid")
         self.assertEqual(caught.exception.code, 403)
         caught.exception.close()
-        self.assertFalse(self.post("/v1/activity", {**body, "selection_token": "stale"})["recorded"])
-        self.assertTrue(self.post("/v1/activity", body)["recorded"])
-        self.assertTrue(self.post("/v1/activity", body)["duplicate"])
-        self.post("/v1/route", {"text": "#tmux exit"})
-        self.assertFalse(self.post("/v1/activity", {**body, "event_id": "bot:late"})["recorded"])
+        self.assertFalse(self.post("/v2/activity", {**body, "selection_token": "stale"})["recorded"])
+        self.assertTrue(self.post("/v2/activity", body)["recorded"])
+        self.assertTrue(self.post("/v2/activity", body)["duplicate"])
+        self.post("/v2/route", {"text": "/tmux sel 001 ext"})
+        self.assertFalse(self.post("/v2/activity", {**body, "event_id": "bot:late"})["recorded"])
 
     def test_activity_payload_is_validated(self):
         for body in ({}, {"selection_token": ""}, {"selection_token": 1},
                      {"selection_token": "x", "event_id": []}, {"selection_token": "x" * 257}):
             with self.subTest(body=body), self.assertRaises(urllib.error.HTTPError) as caught:
-                self.post("/v1/activity", body)
+                self.post("/v2/activity", {"channel": "001", **body})
             self.assertEqual(caught.exception.code, 400)
             caught.exception.close()
 
     def test_malformed_payload_is_rejected(self):
         with self.assertRaises(urllib.error.HTTPError) as caught:
-            self.post("/v1/route", {"text": ["not", "text"]})
+            self.post("/v2/route", {"text": ["not", "text"]})
         self.assertEqual(caught.exception.code, 400)
         caught.exception.close()
 

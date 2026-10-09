@@ -30,12 +30,20 @@ tar -czf backups/default-before-upgrade.tar.gz instances/default
 
 git fetch --tags
 # 审查对应版本后再切换，不覆盖自己未提交的改动。
-git switch --detach v0.1.0
+git switch --detach v0.2.0
 docker compose --env-file instances/default/compose.env -p qq-tmux-default up -d --build
 systemctl --user start qq-tmux-bridge-default.service
 ```
 
 上例中的 `backups/` 已被忽略。升级验证失败，停止新版本，切回旧提交或镜像，并恢复一致的实例备份；已成功输入终端的命令不能通过代码回滚撤销。不要盲目覆盖仍在运行的数据库，也不要删除所有者绑定来“修复”连接。
+
+## v0.2 多终端升级
+
+升级QQ镜像及宿主桥接必须同步，HTTP协议变为v2；旧v1接口不再提供运行入口。升级保留本人和群绑定，旧单窗格连接停止订阅，不自动复制为多条连接；先 `/tmux ls`，再用三位编号 `ent` 接入。
+
+`data/tmux-relay/multi.sqlite3`保存固定编号和全局输入收据，`channels/001/bridge.sqlite3`保存该连接，`channels/001/delivery.json`保存QQ投递进度；两侧均需备份。编号永不复用，长期用尽999个编号时须先备份、断开所有连接并维护注册表，不能直接覆盖活跃编号库。
+
+远程密钥只由宿主读取，按[SSH接入](remote.md)配置和核验。远端SSH超时不自动重新提交输入。单连接的窗口关闭/静默断开通知确认后删除订阅，其余连接继续；所有窗格共用QQ额度和发送调度。
 
 ## 离线接入助手（可选）
 

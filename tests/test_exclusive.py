@@ -11,6 +11,19 @@ from test_relay import TmuxFixture, relay_module
 
 
 class ExclusiveTests(TmuxFixture):
+    def test_remote_lease_is_shared_even_with_different_local_tmux_sockets(self):
+        directory = Path(self.temp.name) / "locks"
+        first = relay_module.PaneLocks(directory, "/tmp/local-a", "first")
+        second = relay_module.PaneLocks(directory, "/tmp/local-b", "second")
+        self.addCleanup(first.release_except)
+        self.addCleanup(second.release_except)
+        pane = {"server": "remote", "identity": "verified-endpoint:server:process:tty"}
+        first.acquire(pane)
+        with self.assertRaises(relay_module.RelayError):
+            second.acquire(pane)
+        first.release_except()
+        second.acquire(pane)
+
     def bridge(self, name, durable=False):
         locks = relay_module.PaneLocks(Path(self.temp.name) / "locks", self.socket, name)
         self.addCleanup(locks.release_except)

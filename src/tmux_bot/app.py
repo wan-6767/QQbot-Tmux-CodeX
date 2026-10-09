@@ -12,6 +12,7 @@ from gateway.session import SessionSource
 
 from . import owner, qq_commands, terminal_relay, group_delivery
 from .bridge import HELP
+from .multi_relay import MultiGateway
 
 logger = logging.getLogger("qq_tmuxbot")
 HELP_TEXT = HELP.replace("返回 Hermes", "返回终端选择模式").replace(
@@ -115,7 +116,7 @@ class TerminalAdapter(QQAdapter):
 
     def __init__(self, config):
         super().__init__(config)
-        self.gateway = TerminalGateway(self)
+        self.gateway = MultiGateway(self)
         self.dispatch_lock = asyncio.Lock()
         self.panel_task = None
         self.group_replies = group_delivery.GroupReplies()
@@ -175,7 +176,7 @@ class TerminalAdapter(QQAdapter):
                 break
         if text.startswith("/group bind "):
             async with self.dispatch_lock:
-                if terminal_relay.active() and terminal_relay._session.get("chat_type") == "group":
+                if self.gateway.has_group():
                     return
                 if not owner.bind_group(group, member, text):
                     return
@@ -238,7 +239,7 @@ class TerminalAdapter(QQAdapter):
                         try:
                             await self._send_c2c_text(owner.owner_id(), "## 群消息受限\n\n" + bot_name()
                                 + "的主动群消息被 QQ 拒绝。\n请在 QQ 群机器人权限中允许主动发言；有权限后待发内容会自动重试。\n"
-                                  "普通 @回复已兼容；也可发送 /tmux list100 查看。")
+                                  "普通 @回复已兼容；也可发送 /tmux sel 编号 list100 查看。")
                         except Exception:
                             logger.warning("Group delivery warning could not reach private owner")
                 raise
@@ -255,9 +256,7 @@ class TerminalAdapter(QQAdapter):
         return None
 
     async def send(self, chat_id, content, **kwargs):
-        scope = self._activity_scope(chat_id)
         result = await super().send(chat_id, service_message(content), **kwargs)
-        await self._record_sent(result, scope)
         return result
 
     async def send_with_keyboard(self, chat_id, text, keyboard, **kwargs):
@@ -265,9 +264,7 @@ class TerminalAdapter(QQAdapter):
         return await self.send(chat_id, text, **kwargs)
 
     async def send_document(self, chat_id, file_path, **kwargs):
-        scope = self._activity_scope(chat_id)
         result = await super().send_document(chat_id, file_path, **kwargs)
-        await self._record_sent(result, scope)
         return result
 
     def _activity_scope(self, chat_id):
@@ -322,7 +319,7 @@ async def run():
         if principal:
             adapter.panel_task = asyncio.create_task(adapter.sync_panel())
         if principal or owner.group_binding():
-            terminal_relay.handle_gateway_start(adapter.gateway)
+            adapter.gateway.start_task = asyncio.create_task(adapter.gateway.start())
         while not stop.is_set():
             if not adapter._running:
                 raise RuntimeError("CodeX QQ connection stopped; container restart required")
@@ -332,12 +329,15 @@ async def run():
                 "gateway_ready": bool(adapter._session_id),
                 "last_dispatch_at": adapter.last_dispatch_at,
                 "last_group_message_at": adapter.last_group_message_at,
-                "llm_enabled": False, "heartbeat_at": time.time()})
+                "llm_enabled": False, "relay_protocol": 2,
+                "terminal_connections": sum(not c.closed for c in adapter.gateway.channels.values()),
+                "heartbeat_at": time.time()})
             try:
                 await asyncio.wait_for(stop.wait(), timeout=10)
             except TimeoutError:
                 pass
     finally:
+        await adapter.gateway.stop()
         for task in (terminal_relay._delivery, terminal_relay._watch_delivery):
             if task and not task.done():
                 try:

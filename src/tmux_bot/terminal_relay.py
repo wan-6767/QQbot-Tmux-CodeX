@@ -634,7 +634,7 @@ def request(path: str, payload: dict) -> dict:
         headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"},
         method="POST",
     )
-    with urllib.request.build_opener(urllib.request.ProxyHandler({})).open(req, timeout=4) as response:
+    with urllib.request.build_opener(urllib.request.ProxyHandler({})).open(req, timeout=45 if path.startswith("/v2/") else 4) as response:
         return json.load(response)
 
 

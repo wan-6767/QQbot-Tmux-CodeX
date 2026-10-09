@@ -8,7 +8,7 @@
 
 不另起一个 AI 会话，不让模型代按键。选择现有 tmux 窗格后，QQ 消息直接输入终端；终端里的 Codex、shell 或其他程序继续在原来的会话中运行。项目本身不调用大模型，也不需要模型 API Key。
 
-适合从手机查看长任务进度、补充指令、操作模型选择菜单，以及用多个 QQ 机器人分别连接多个工作窗格。
+一个 QQ bot，同时管理本地和远程服务器上的多个终端。每个窗格拥有固定的001–999编号，输入指向编号，输出带终端名，不需要来回切换机器人。
 
 [从零接入](docs/getting-started.md) · [使用手册](docs/usage.md) · [故障排查](docs/troubleshooting.md) · [运行维护](docs/operations.md) · [安全说明](SECURITY.md)
 
@@ -18,7 +18,7 @@
 | --- | --- |
 | 第一次用：注册 QQ bot、配置凭据、部署并绑定 | [从零接入](docs/getting-started.md) |
 | 已经部署：选终端、输入消息、操作菜单、查看输出 | [使用手册](docs/usage.md) · [指令速查](#指令速查) |
-| 多个 bot 在同一群分别连接不同终端 | [群聊接入](docs/getting-started.md#6-可选在群里使用) · [多 bot 部署](docs/getting-started.md#7-可选多个-bot) |
+| 一个bot连接多个本地/远程终端 | [多终端使用](docs/usage.md) · [SSH服务器配置](docs/remote.md) |
 | 不回复、没有新增输出、输入状态不明 | [故障排查](docs/troubleshooting.md) |
 | 升级、备份、回滚，或了解操作权限 | [运行维护](docs/operations.md) · [安全说明](SECURITY.md) |
 
@@ -30,29 +30,30 @@
 你：/tmux ls
 Bot：列出当前 tmux 窗格及占用情况
 
-你：/tmux select 1
+你：/tmux sel 001 ent
 Bot：一次返回最近约 100 行上下文
 
-你：检查刚才的修改，并运行测试
+你：/tmux sel 001 检查刚才的修改，并运行测试
 Bot：后续新增的完整说明和回答，按段落自动追加
 
-你：/model
+你：/tmux sel 001 /model
 Bot：完整显示模型选择菜单
-你：/tmux key down
-你：/tmux key enter
+你：/tmux sel 001 key down
+你：/tmux sel 001 key enter
 
-你：/tmux list100
+你：/tmux sel 001 list100
 Bot：完整终端快照，包括默认隐藏的工具操作日志
 
-你：/tmux exit
+你：/tmux sel 001 ext
 Bot：退出转发，服务器上的任务仍然运行
 ```
 
-群里每条消息都要 **@对应机器人**。一个机器人同一时刻连接一个窗格；多个机器人可以在同一群工作，但不能同时占用同一个窗格。
+群里每条指令都要 **@对应机器人**。同一个bot可同时连接多个窗格，各自独立追加、重试和断开。所有回显带 `[001 · local · work:0.0]` 或远程服务器标签。多个bot仍不能同时占用同一窗格。
 
 ## 核心能力
 
-- **原会话直连**：支持列表编号、稳定窗格ID和完整 tmux 位置；不创建、关闭或杀死你的工作会话。
+- **固定编号直连**：001–999持久化对应真实窗格，改名和重排不会误投；窗格关闭后编号失效，不复用到新任务。
+- **多服务器**：SSH密钥接入远端tmux，`ls`统一列出本地和远端；无需远端常驻服务，不放宽主机指纹校验。
 - **持续追加**：进入时任务已在运行也能继续接收；不必再发一句话才开始监听。
 - **正文与快照分开**：自动转发自然语言和代码示例，隐藏 Ran、Explored、Edited、网页操作和 diff 噪音；真实429/5xx错误保留。
 - **完整文本体**：不把回答拆成一行一条；合并终端宽度造成的软换行，保留段落、代码、表格与列表结构。超长内容以完整文本附件发送。
@@ -141,26 +142,27 @@ python3 scripts/manage.py pairing second
 
 每个实例必须使用独立端口、Compose项目名和QQ凭据。由同一仓库初始化的实例共用 `instances/pane-locks/`，自动启用窗格互斥；不同仓库目录部署时须为桥接显式指定同一个锁目录和同一个tmux socket。
 
+### 5. 可选：连接远程服务器
+
+在`instances/default/data/tmux-relay/hosts.json`配置服务器IP/主机名、端口、用户、私钥路径和已核验的known_hosts，重启宿主桥接。`/tmux ls`会同时列出`local`及远程服务器，使用同一套三位编号指令。[完整SSH接入说明](docs/remote.md)
+
 ## 指令速查
 
 | 指令 | 作用 |
 | --- | --- |
 | `/help`、`/tmux help` | 完整终端帮助 |
 | `/tmux ls` | 列出窗格及占用者 |
-| `/tmux select 1` | 按上次列表编号连接 |
-| `/tmux select %4` | 按窗格ID连接 |
-| `/tmux select work:0.0` | 按完整位置连接 |
-| 普通文字 | 原样输入并回车 |
-| `/tmux type 文字` | 只输入，不回车 |
-| `/tmux send /help` | 将机器人保留指令原样输入终端 |
-| `/tmux key enter` | 发送一个按键 |
-| `/tmux list100` | 最近100行原始快照，并重置自动追加基线 |
-| `/tmux screen 50` | 查看10–100行快照，默认40行 |
-| `/tmux reconnect` | 重连闲置断开的原窗格 |
-| `/tmux exit` | 退出转发，不停止任务 |
+| `/tmux sel 001 ent` | 接入或重连这一窗格，返回100行 |
+| `/tmux sel 001 文字` | 原样输入并回车 |
+| `/tmux sel 001 /model` | 输入终端程序命令 |
+| `/tmux sel 001 type 文字` | 只输入，不回车 |
+| `/tmux sel 001 send ent` | 将保留词ent作为文字输入 |
+| `/tmux sel 001 key enter` | 发送一个按键 |
+| `/tmux sel 001 list100` | 原始100行，只重置这一连接的追加基线 |
+| `/tmux sel 001 ext` | 仅退出这一连接，不停止任务 |
 | `/group bind`、`/group status`、`/group unbind` | 私聊管理群绑定 |
 
-按键名：`enter`、`esc`、`up`、`down`、`left`、`right`、`tab`、`space`、`backspace`、`delete`、`home`、`end`、`pgup`、`pgdn`、`ctrl-c`、`ctrl-d`。一次发送一个按键；不支持重复次数和任意组合键。`/model`、`/permissions` 等其他斜杠命令交给终端程序，是否可用由该程序决定。
+按键名：`enter`、`esc`、`up`、`down`、`left`、`right`、`tab`、`space`、`backspace`、`delete`、`home`、`end`、`pgup`、`pgdn`、`ctrl-c`、`ctrl-d`。一次发送一个按键。`ent`是接入，不是回车；终端命令也必须加`/tmux sel 编号`前缀。新版不再接受无编号输入或旧版select/exit，避免误投。
 
 公开指令统一使用 `/`。内部桥接保留历史 `#tmux` 协议及键盘数据结构用于兼容测试，但QQ入口拒绝执行旧 `#` 指令，运行时不显示这些键盘。
 
@@ -174,8 +176,11 @@ QQ回显 ← 持久化投递队列 ← 段落/菜单/噪音识别 ← 屏幕采�
 | 目录 | 职责 |
 | --- | --- |
 | `src/tmux_bot/app.py` | QQ纯终端接入，不进入模型处理流程 |
-| `src/tmux_bot/bridge.py` | 宿主tmux操作、输入收据、选中状态和窗格锁 |
-| `src/tmux_bot/terminal_relay.py` | 屏幕增量、清洗、段落、菜单和可靠重试 |
+| `src/tmux_bot/bridge.py` | tmux操作内核、输入收据和窗格锁 |
+| `src/tmux_bot/multiplex.py` | 固定编号、独立租约和多窗格HTTP接口 |
+| `src/tmux_bot/multi_relay.py` | 每个窗格独立增量、队列、断点和观察任务 |
+| `src/tmux_bot/terminal_relay.py` | 正文清洗、段落、菜单等复用算法 |
+| `src/tmux_bot/remote.py` | 严格校验的SSH及本地/远端统一tmux后端 |
 | `src/tmux_bot/owner.py` | 一次性绑定及应用独立的所有者/群身份 |
 | `src/tmux_bot/group_delivery.py` | QQ群被动回复窗口及主动消息退避 |
 | `src/tmux_bot/qq_commands.py` | 斜杠映射和本人输入框面板 |
@@ -212,7 +217,7 @@ docker run --rm --network none qq-tmux-relay-test
 
 ## 必须知道的限制
 
-1. **转发来自屏幕采样，不是Codex原生事件流。** 极快结束、完全相同且未被观察到运行状态的输出可能无法可靠区分；未知TUI也可能不符合菜单识别规则。需要时用 `/tmux list100` 核对。
+1. **转发来自屏幕采样，不是Codex原生事件流。** 极快结束、完全相同且未被观察到运行状态的输出可能无法可靠区分；未知TUI也可能不符合菜单识别规则。需要时用 `/tmux sel 编号 list100` 核对。
 2. 工具噪音清洗主要针对Codex风格界面，不保证任意终端程序都能正确区分说明与操作日志。完整快照不清洗。
 3. QQ每条群入站消息的被动回复次数和窗口有限；耗尽后需主动群消息权限。被拒绝时保留队列、退避重试，不伪造消息ID；重新 @bot 可提供新窗口。
 4. 输入框指令面板取决于机器人能力及QQ客户端同步。注册失败不影响手动输入，服务器不能保证每种客户端立即显示。

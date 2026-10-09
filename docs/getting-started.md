@@ -34,7 +34,7 @@ docker version
 docker compose version
 ```
 
-Docker组本身有很高的宿主权限。不要为了绕过权限错误把整个 bot 或桥接改成 root。当前不支持 Windows/macOS 原生宿主、QQ频道或无 tmux socket 的远程转发。
+Docker组本身有很高的宿主权限。不要为了绕过权限错误把bot或桥接改成root。当前不支持Windows/macOS原生宿主或QQ频道；支持通过密钥SSH访问远程Linux的已有tmux。
 
 ## 3. 初始化独立实例
 
@@ -96,12 +96,12 @@ python3 scripts/manage.py pairing default
 
 ```text
 /tmux ls
-/tmux select 1
-/tmux list100
-/tmux exit
+/tmux sel 001 ent
+/tmux sel 001 list100
+/tmux sel 001 ext
 ```
 
-看到真实窗格、进入时约100行上下文、能够获取新输出、退出后tmux任务仍在，就是首次验收。编号对应最近一次列表；不想依赖编号时可用完整位置 `/tmux select work:0.0` 或稳定窗格ID。
+看到真实窗格、进入时约100行、新内容持续追加、退出后任务仍在，就是首次验收。001是示例，请用列表中的实际三位编号。所有输入都要带编号；同一bot可同时`ent`多个窗格，各自独立转发。远程服务器接入见[SSH配置](remote.md)。
 
 ## 6. 可选：在群里使用
 
@@ -109,7 +109,7 @@ python3 scripts/manage.py pairing default
 
 只有绑定的群成员身份能够控制终端，但所有群成员都能看见输出。平台允许入群与本项目允许操作是两层不同权限；管理员身份不能绕过平台使用范围。不要直接填写群号或把另一AppID的OpenID复制过来。
 
-查看 `/group status`；解除时私聊 `/group unbind`。若此bot仍在群内连接终端，先在原群 `/tmux exit`，再修改绑定。
+查看 `/group status`；解除时私聊 `/group unbind`。先在原群把全部连接 `/tmux sel 编号 ext`，再修改绑定。
 
 ## 7. 可选：多个 bot
 
@@ -122,6 +122,6 @@ docker compose --env-file instances/second/compose.env -p qq-tmux-second up -d -
 python3 scripts/manage.py pairing second
 ```
 
-每个实例用不同AppID、AppSecret、端口和Compose项目名，同一AppID不能同时启动两条QQ连接。一个bot同一时刻连接一个窗格，多个bot可以加入同一群；相同仓库实例共享窗格锁，不能抢占同一个终端。
+每个实例用不同AppID、AppSecret、端口和Compose项目名，同一AppID不能同时启动两条QQ连接。通常一个bot即可管理多个窗格，无须增加bot；多个bot仍可独立部署并共享窗格锁，不能抢占同一终端。
 
 完成接入后看 [使用手册](usage.md)、[故障排查](troubleshooting.md) 和 [维护部署](operations.md)。

@@ -1,0 +1,375 @@
+import asyncio
+import json
+import os
+from pathlib import Path
+import shlex
+import subprocess
+import sys
+import tempfile
+import time
+from types import SimpleNamespace
+import unittest
+from unittest.mock import AsyncMock, patch
+
+from gateway.config import Platform
+from tmux_bot import owner
+from tmux_bot.bridge import PaneLocks, Relay, Tmux
+from tmux_bot.multiplex import MultiRelay, parse
+from tmux_bot.multi_relay import Channel, MultiGateway
+from tmux_bot.remote import load_hosts, RemoteTmux, TmuxFleet, worker_source
+from test_relay import TmuxFixture, MENU, TOOL_RECORDS
+
+SOURCE = {"chat_id": "owner", "user_id": "owner", "chat_type": "dm"}
+
+
+class MultiBridgeTests(TmuxFixture):
+    def setUp(self):
+        super().setUp()
+        script = 'import sys; print("SECOND_READY", flush=True); [print("SECOND:"+line.rstrip("\\n"), flush=True) for line in sys.stdin]'
+        self.tmux.run("new-window", "-t", "relay-test", f"{shlex.quote(sys.executable)} -u -c {shlex.quote(script)}")
+        self.root = Path(self.temp.name) / "multi"
+        self.locks = PaneLocks(Path(self.temp.name) / "locks", self.socket, "winter")
+        self.multi = MultiRelay(self.tmux, self.root, self.locks)
+        self.route("/tmux ls")
+
+    def tearDown(self):
+        self.multi.close()
+        super().tearDown()
+
+    def route(self, text, message="", source=None):
+        return self.multi.route(text, message, source or SOURCE)
+
+    def test_two_connected_panes_receive_only_their_numbered_input(self):
+        a, b = self.route("/tmux sel 001 ent"), self.route("/tmux sel 002 ent")
+        self.assertTrue(a["active"] and b["active"])
+        self.assertEqual(len(self.locks.held), 2)
+        self.route("/tmux sel 001 first-随机中文", "input-a")
+        self.route("/tmux sel 002 second-随机中文", "input-b")
+        self.wait_for("ECHO:first-随机中文")
+        deadline = time.monotonic() + 3
+        while "SECOND:second-随机中文" not in self.tmux.capture("%1") and time.monotonic() < deadline:
+            time.sleep(.02)
+        self.assertIn("SECOND:second-随机中文", self.tmux.capture("%1"))
+        self.assertNotIn("second-随机中文", self.tmux.capture("%0"))
+        self.assertNotIn("first-随机中文", self.tmux.capture("%1"))
+        self.assertEqual([c["channel"] for c in self.multi.state()["channels"]], ["001", "002"])
+
+    def test_exit_one_keeps_other_lease_and_tasks_alive(self):
+        self.route("/tmux sel 001 ent")
+        self.route("/tmux sel 002 ent")
+        self.route("/tmux sel 001 ext")
+        self.assertEqual(len(self.locks.held), 1)
+        self.assertTrue(self.multi.channels["002"].selected)
+        self.assertEqual(len(self.tmux.panes()), 2)
+        other = Relay(self.tmux, pane_locks=PaneLocks(Path(self.temp.name) / "locks", self.socket, "other"))
+        try:
+            self.assertTrue(other.route("#tmux select %0")["active"])
+            self.assertFalse(other.route("#tmux select %1").get("initial_context", False))
+        finally:
+            other.pane_locks.release_except()
+
+    def test_numbers_persist_through_reorder_rename_and_restart(self):
+        original = {p["identity"]: n for n, p in self.multi._refresh()}
+        panes = self.tmux.panes()
+        with patch.object(self.tmux, "panes", return_value=list(reversed(panes))):
+            self.assertEqual({p["identity"]: n for n, p in self.multi._refresh()}, original)
+        self.tmux.run("rename-session", "-t", "relay-test", "renamed")
+        self.route("/tmux sel 001 ent")
+        self.route("/tmux sel 002 ent")
+        self.multi.close()
+        self.multi = MultiRelay(self.tmux, self.root, self.locks)
+        self.assertEqual({p["identity"]: n for n, p in self.multi._refresh()}, original)
+        self.assertEqual(len(self.multi.state()["channels"]), 2)
+        self.assertIn("renamed", self.route("/tmux ls")["message"])
+
+    def test_replaced_pane_never_reuses_the_old_number(self):
+        self.tmux.run("respawn-pane", "-k", "-t", "%0", "sleep 60")
+        self.assertTrue(self.route("/tmux sel 001 ent")["error"])
+        self.route("/tmux ls")
+        self.assertEqual(self.multi._row("003")[1]["pane_id"], "%0")
+        self.assertTrue(self.route("/tmux sel 003 ent")["active"])
+
+    def test_idle_and_activity_are_independent_and_late_acks_do_not_renew(self):
+        a = self.route("/tmux sel 001 ent")
+        b = self.route("/tmux sel 002 ent")
+        self.multi.channels["001"].touched -= 1801
+        self.assertTrue(self.multi.activity("002", b["selection_token"], "bot:message")["recorded"])
+        state = self.multi.state()["channels"]
+        self.assertFalse(state[0]["active"])
+        self.assertEqual(state[0]["reason"], "idle")
+        self.assertTrue(state[1]["active"])
+        self.assertFalse(self.multi.activity("001", a["selection_token"], "late")["recorded"])
+        self.assertTrue(self.multi.acknowledge_close("001", state[0]["epoch"])["acknowledged"])
+        self.assertEqual(len(self.multi.state()["channels"]), 1)
+
+    def test_deduplication_is_global_across_channels_and_persistent(self):
+        self.route("/tmux sel 001 ent")
+        self.route("/tmux sel 002 ent")
+        self.route("/tmux sel 001 exactly-once-fixture", "same-message")
+        self.assertTrue(self.route("/tmux sel 002 must-not-be-sent", "same-message")["duplicate"])
+        self.wait_for("ECHO:exactly-once-fixture")
+        self.multi.close()
+        self.multi = MultiRelay(self.tmux, self.root, self.locks)
+        self.assertTrue(self.route("/tmux sel 002 must-not-be-sent", "same-message")["duplicate"])
+        self.assertNotIn("must-not-be-sent", self.tmux.capture("%1"))
+        self.assertEqual(self.tmux.capture("%0").count("ECHO:exactly-once-fixture"), 1)
+
+    def test_unknown_submission_is_not_retried_and_child_receipt_can_recover(self):
+        self.route("/tmux sel 001 ent")
+        key = self.multi.receipt_key(SOURCE, "crash-input")
+        self.multi.db.execute("INSERT INTO receipts VALUES (?,'unknown','001',NULL)", (key,))
+        self.multi.db.commit()
+        self.assertTrue(self.route("/tmux sel 001 never-repeat", "crash-input")["uncertain"])
+        self.assertNotIn("never-repeat", self.tmux.capture("%0"))
+        self.multi.channels["001"].route("#tmux send recovered-accepted", key)
+        self.assertEqual(self.multi.receipt(key)["status"], "complete")
+
+    def test_chat_sources_cannot_steal_a_connection_or_progress(self):
+        self.route("/tmux sel 001 ent")
+        group = {"chat_id": "group", "user_id": "member", "chat_type": "group"}
+        for body in ("ent", "ext", "list100", "secret"):
+            self.assertTrue(self.route("/tmux sel 001 " + body, source=group)["error"])
+        self.assertTrue(self.route("/tmux sel 002 ent", source=group)["active"])
+        self.assertEqual(self.multi._row("001")[2], SOURCE)
+        self.assertEqual(self.multi._row("002")[2], group)
+
+    def test_unselected_text_and_old_commands_never_reach_a_terminal(self):
+        self.route("/tmux sel 001 ent")
+        for command in ("ordinary-text", "/model", "/tmux exit", "/tmux select 1", "#tmux ls", "/tmux sel 000 ent", "/tmux sel 1 ent"):
+            self.assertTrue(self.route(command)["error"])
+        self.assertNotIn("ordinary-text", self.tmux.capture("%0"))
+        self.assertTrue(self.route("/tmux sel 002 not-connected")["error"])
+
+    def test_type_key_reserved_literals_and_100_line_snapshot(self):
+        self.route("/tmux sel 001 ent")
+        self.route("/tmux sel 001 type draft")
+        self.assertNotIn("ECHO:draft", self.tmux.capture("%0"))
+        self.route("/tmux sel 001 key enter")
+        self.wait_for("ECHO:draft")
+        self.route("/tmux sel 001 send ext")
+        self.wait_for("ECHO:ext")
+        snap = self.route("/tmux sel 001 list100")
+        self.assertTrue(snap["initial_context"])
+        self.assertLessEqual(len(snap["screen"].splitlines()), 100)
+        self.assertIn("001 · relay-test", snap["target"])
+
+    def test_api_rejects_legacy_protocol_and_invalid_ids_without_side_effects(self):
+        with self.assertRaises(ValueError):
+            self.multi.api("/v1/route", {"text": "#tmux select 1"})
+        for channel in ("../../root", "000", "1", 1):
+            with self.assertRaises(ValueError):
+                self.multi.api("/v2/screen", {"channel": channel, "epoch": 1})
+        self.assertTrue(self.multi.api("/v2/screen", {"channel": "999", "epoch": 1})["error"])
+
+
+class DeliveryTests(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        env = patch.dict(os.environ, {"HERMES_HOME": self.temp.name})
+        env.start(); self.addCleanup(env.stop)
+        self.adapter = SimpleNamespace(send=AsyncMock(return_value=SimpleNamespace(success=True, message_id="accepted")),
+            send_document=AsyncMock(return_value=SimpleNamespace(success=True, message_id="file")), MAX_MESSAGE_LENGTH=4000, _chat_type_map={})
+        self.gateway = MultiGateway(self.adapter)
+        self.gateway.request = AsyncMock(return_value={"recorded": True})
+        self.gateway.authorized = lambda source: source == SOURCE
+        self.a = Channel(self.gateway, self.result("001", "OLD_A"))
+        self.b = Channel(self.gateway, self.result("002", "OLD_B"))
+
+    def result(self, number, screen, **extra):
+        return {"channel": number, "target": number + " · work:0.0", "source": SOURCE,
+                "selection_token": "token-" + number, "epoch": 1, "input_serial": 0,
+                "screen_key": "identity-" + number, "screen": screen, "viewport": screen,
+                "active": True, **extra}
+
+    async def test_interleaved_channels_have_independent_baselines_and_labels(self):
+        for channel, number, baseline in ((self.a, "001", "OLD_A"), (self.b, "002", "OLD_B")):
+            await channel.deliver(self.result(number, baseline, initial_context=True), snapshot=True)
+        self.adapter.send.reset_mock()
+        await asyncio.gather(self.a.deliver(self.result("001", "OLD_A\n\nAnswer A")),
+                             self.b.deliver(self.result("002", "OLD_B\n\nAnswer B")))
+        messages = [c.args[1] for c in self.adapter.send.call_args_list]
+        self.assertEqual(len(messages), 2)
+        self.assertTrue(any("[001 ·" in m and "Answer A" in m and "Answer B" not in m for m in messages))
+        self.assertTrue(any("[002 ·" in m and "Answer B" in m and "Answer A" not in m for m in messages))
+        await self.a.deliver(self.result("001", "RAW_A", initial_context=True), snapshot=True)
+        self.assertEqual(self.b.screen, "OLD_B\n\nAnswer B")
+
+    async def test_tools_hidden_errors_preserved_and_menu_complete(self):
+        self.a.seed(self.result("001", "› question\n"))
+        await self.a.deliver(self.result("001", "› question\n\n" + TOOL_RECORDS + "\n\n• HTTP 503 upstream unavailable\n\n• Real answer here\n"))
+        messages = "\n".join(c.args[1] for c in self.adapter.send.call_args_list)
+        self.assertIn("HTTP 503", messages)
+        self.assertIn("Real answer here", messages)
+        self.assertNotIn("operation-output", messages)
+        self.adapter.send.reset_mock()
+        await self.a.deliver(self.result("001", MENU))
+        self.assertIn(MENU, self.adapter.send.call_args.args[1])
+
+    async def test_failed_batch_resumes_after_restart_without_replaying_accepted_body(self):
+        self.a.seed(self.result("001", "› question\n"))
+        self.adapter.send.side_effect = [SimpleNamespace(success=True, message_id="first"), SimpleNamespace(success=False, error="HTTP 429")]
+        after = self.result("001", "› question\n\n• First paragraph\n\nSecond paragraph\n")
+        self.assertFalse(await self.a.deliver(after))
+        self.assertEqual(self.a.pending["next"], 1)
+        restored = Channel(self.gateway, after)
+        self.adapter.send.side_effect = None
+        self.adapter.send.reset_mock()
+        self.assertTrue(await restored.deliver(after))
+        messages = "\n".join(c.args[1] for c in self.adapter.send.call_args_list)
+        self.assertIn("Second paragraph", messages)
+        self.assertNotIn("First paragraph", messages)
+        self.assertEqual(self.b.screen, None)
+
+    async def test_failed_send_does_not_renew_and_success_renews_only_its_channel(self):
+        self.adapter.send.return_value = SimpleNamespace(success=False, error="HTTP 503")
+        self.assertFalse(await self.a.frame("failure"))
+        self.gateway.request.assert_not_awaited()
+        self.adapter.send.return_value = SimpleNamespace(success=True, message_id="new")
+        self.assertTrue(await self.b.frame("success"))
+        self.gateway.request.assert_awaited_once_with("/v2/activity", {"channel": "002", "selection_token": "token-002", "event_id": "bot:new"})
+
+    async def test_large_snapshot_is_one_attachment_with_id_and_temp_cleanup(self):
+        self.assertTrue(await self.a.frame("长内容" * 3000))
+        self.adapter.send_document.assert_awaited_once()
+        self.adapter.send.assert_not_awaited()
+        self.assertIn("001", self.adapter.send_document.call_args.kwargs["caption"])
+        self.assertFalse(list((self.a.path.parent / "outgoing").glob("*.txt")))
+
+    async def test_update_never_cancels_an_inflight_send_or_another_channel(self):
+        entered, release = asyncio.Event(), asyncio.Event()
+        async def slow_send(*args, **kwargs):
+            entered.set(); await release.wait()
+            return SimpleNamespace(success=True, message_id="slow")
+        self.adapter.send.side_effect = slow_send
+        self.a.inflight = asyncio.create_task(self.a.frame("Old frame"))
+        await entered.wait()
+        with patch.object(self.a, "watch", AsyncMock()):
+            update = asyncio.create_task(self.a.update(self.result("001", "next", epoch=2), "key", "up"))
+            await asyncio.sleep(.02)
+            self.assertFalse(update.done())
+            release.set()
+            await update
+            await self.a.task
+        self.assertTrue(self.a.inflight.result())
+        self.assertEqual(self.b.meta["epoch"], 1)
+
+    async def test_both_watchers_append_without_any_new_qq_input(self):
+        for channel, number, baseline in ((self.a, "001", "OLD_A"), (self.b, "002", "OLD_B")):
+            channel.seed(self.result(number, baseline))
+        unavailable = {"001"}
+        async def capture(path, payload):
+            if path == "/v2/activity":
+                return {"recorded": True}
+            number = payload["channel"]
+            if number in unavailable:
+                unavailable.remove(number)
+                return {"active": False, "error": True, "message": "transient SSH failure"}
+            return self.result(number, {"001": "OLD_A\n\nAnswer A", "002": "OLD_B\n\nAnswer B"}[number])
+        self.gateway.request.side_effect = capture
+        self.a.task = asyncio.create_task(self.a.watch())
+        self.b.task = asyncio.create_task(self.b.watch())
+        self.gateway.channels = {"001": self.a, "002": self.b}
+        try:
+            deadline = asyncio.get_running_loop().time() + 8
+            while self.adapter.send.await_count < 2 and asyncio.get_running_loop().time() < deadline:
+                await asyncio.sleep(.05)
+            self.assertEqual(self.adapter.send.await_count, 2)
+            messages = [call.args[1] for call in self.adapter.send.call_args_list]
+            self.assertTrue(any("[001 ·" in m and "Answer A" in m for m in messages))
+            self.assertTrue(any("[002 ·" in m and "Answer B" in m for m in messages))
+            self.assertFalse(any("OLD_" in m for m in messages))
+            self.assertTrue(all(call.args[0] in {"/v2/screen", "/v2/activity"} for call in self.gateway.request.call_args_list))
+        finally:
+            await self.gateway.stop()
+
+    async def test_attachment_does_not_bypass_revoked_chat_authorization(self):
+        self.gateway.authorized = lambda source: False
+        self.assertFalse(await self.a.frame("private" * 1000))
+        self.adapter.send_document.assert_not_awaited()
+
+
+class RemoteTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.key, self.known = self.root / "key", self.root / "known_hosts"
+        self.key.write_text("fixture key"); self.key.chmod(0o600)
+        self.known.write_text("fixture known_hosts")
+        self.item = {"name": "remote", "host": "server.example.com", "port": 2222, "user": "user",
+                     "identity_file": str(self.key), "known_hosts_file": str(self.known)}
+        self.path = self.root / "hosts.json"
+
+    def config(self, item):
+        self.path.write_text(json.dumps({"version": 1, "servers": [item]})); self.path.chmod(0o600)
+        return load_hosts(self.path)
+
+    def test_host_configuration_permissions_and_injection_validation(self):
+        self.assertEqual(self.config(self.item)[0]["port"], 2222)
+        for changes in ({"host": "server;touch /tmp/no"}, {"user": "-oProxyCommand=bad"}, {"port": True},
+                        {"name": "local"}, {"socket": "relative/socket"}):
+            with self.subTest(changes=changes), self.assertRaises(ValueError):
+                self.config({**self.item, **changes})
+        self.key.chmod(0o644)
+        with self.assertRaises(ValueError): self.config(self.item)
+        self.key.chmod(0o600)
+        self.config(self.item); self.path.chmod(0o644)
+        with self.assertRaises(ValueError): load_hosts(self.path)
+
+    def test_ssh_strict_verification_and_data_only_stdin(self):
+        remote = RemoteTmux(self.config(self.item)[0], self.root / "control")
+        with patch("tmux_bot.remote.subprocess.run", return_value=SimpleNamespace(returncode=0, stdout=b'{"ok":true,"result":null}')) as run:
+            remote.send("%1", "$(touch /tmp/never); '\" 中文\nline")
+        command = run.call_args.args[0]
+        self.assertIn("StrictHostKeyChecking=yes", command)
+        self.assertIn("IdentitiesOnly=yes", command)
+        self.assertEqual(command[1:3], ["-F", "/dev/null"])
+        self.assertNotIn("$(touch", " ".join(command))
+        payload = json.loads(run.call_args.kwargs["input"])
+        self.assertIn("$(touch", payload["args"][1])
+
+    def test_remote_worker_runs_the_real_tmux_class_not_a_mock(self):
+        socket = str(self.root / "worker.sock")
+        tmux = Tmux(socket)
+        try:
+            tmux.run("new-session", "-d", "-s", "worker", "cat")
+            def rpc(method, *args):
+                result = subprocess.run([sys.executable, "-c", worker_source()], input=json.dumps({"socket": socket, "method": method, "args": args}).encode(), capture_output=True, check=True)
+                data = json.loads(result.stdout)
+                self.assertTrue(data["ok"], data)
+                return data["result"]
+            self.assertEqual(rpc("panes")[0]["pane_id"], "%0")
+            rpc("send", "%0", "SSH-worker-真实中文")
+            deadline = time.monotonic() + 3
+            while "SSH-worker-真实中文" not in rpc("capture", "%0", 100) and time.monotonic() < deadline:
+                time.sleep(.02)
+            self.assertIn("SSH-worker-真实中文", rpc("capture", "%0", 100))
+        finally:
+            tmux.run("kill-server")
+
+    def test_unreachable_remote_does_not_hide_local_windows(self):
+        with patch.object(RemoteTmux, "panes", side_effect=Exception("not used")):
+            fleet = TmuxFleet(SimpleNamespace(panes=lambda: [{"pane_id": "%0", "identity": "local-identity", "target": "work:0.0"}]), self.config(self.item), self.root / "control")
+        from tmux_bot.bridge import RelayError
+        with patch.object(fleet.backends["remote"], "panes", side_effect=RelayError("unreachable")):
+            panes = fleet.panes()
+        self.assertEqual(panes[0]["pane_id"], "local/%0")
+        self.assertEqual(panes[0]["identity"], "local-identity")
+        self.assertIn("remote", fleet.errors)
+
+    def test_renaming_a_server_does_not_change_or_break_pane_identity(self):
+        item = self.config(self.item)[0]
+        before = TmuxFleet(SimpleNamespace(panes=lambda: []), [item], self.root / "control")
+        after = TmuxFleet(SimpleNamespace(panes=lambda: []), [{**item, "name": "renamed"}], self.root / "control")
+        pane = {"pane_id": "%1", "target": "work:0.0", "identity": "server-pid:proc:tty"}
+        with patch.object(before.backends["remote"], "panes", return_value=[pane]):
+            selected = before.panes()[0]
+        with patch.object(after.backends["renamed"], "panes", return_value=[pane]):
+            resolved = after.resolve(selected)
+        self.assertEqual(selected["identity"], resolved["identity"])
+        self.assertEqual(resolved["pane_id"], "renamed/%1")
+
+
+if __name__ == "__main__":
+    unittest.main()

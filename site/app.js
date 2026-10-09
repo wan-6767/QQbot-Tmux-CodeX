@@ -29,7 +29,7 @@
     toast.textContent = message; toast.hidden = false;
     clearTimeout(toastTimer); toastTimer = setTimeout(() => { toast.hidden = true; }, 2800);
   }
-  function heading(title, text, eyebrow = 'QQBOT-TMUX / 0.1.0') {
+  function heading(title, text, eyebrow = 'QQBOT-TMUX / 0.2.0') {
     return `<div class="page-heading"><div class="eyebrow">${eyebrow}</div><h1>${title}</h1><p class="subheading">${text}</p></div>`;
   }
   function codeTool(label, key) {
@@ -46,7 +46,7 @@
       launch: `systemctl --user enable --now \\\n  "$PWD/instances/${n}/${unit}"\n${compose} up -d --build`,
       linger: 'sudo loginctl enable-linger "$USER"',
       pairing: `python3 scripts/manage.py pairing ${n}`,
-      acceptance: '/tmux ls\n/tmux select 1\n/tmux list100\n/tmux exit',
+      acceptance: '/tmux ls\n/tmux sel 001 ent\n/tmux sel 001 list100\n/tmux sel 001 ext',
       status: `systemctl --user status ${unit} --no-pager\n${compose} ps\n${compose} logs --tail 50`,
       restart: `${compose} up -d --build`,
       stop: `${compose} stop\nsystemctl --user stop ${unit}`,
@@ -114,28 +114,26 @@
   const entries = [
     ['全部', '/help', '查看完整帮助', '输入框面板默认仅注册 /help 和 /tmux ls'],
     ['全部', '/tmux help', '查看终端操作帮助', '所有公开指令统一使用 /'],
-    ['窗格', '/tmux ls', '列出窗格、编号和占用情况', '编号对应最近一次列表'],
-    ['窗格', '/tmux select 1', '按列表编号进入', '首次返回最近约 100 行上下文'],
-    ['窗格', '/tmux select %4', '按稳定窗格 ID 进入', '也支持完整位置，如 work:0.0'],
-    ['窗格', '/tmux reconnect', '重连静默断开的原窗格', '不创建新的 tmux 会话'],
-    ['窗格', '/tmux exit', '退出转发', '不停止、不关闭终端里的任务'],
-    ['输入', '普通文字', '原样输入，并自动回车', '/model 等程序命令也直接发送'],
-    ['输入', '/tmux type 文字', '只输入，不回车', '可继续输入或单独发送 enter'],
-    ['输入', '/tmux send /help', '把 bot 保留指令原样发送给终端', '避免 /help 被 bot 自身截获'],
-    ['按键', '/tmux key enter', '回车确认', '一次发送一个按键，不支持重复次数'],
-    ['按键', '/tmux key up', '向上选择或移动', 'down / left / right 同样可用'],
-    ['按键', '/tmux key backspace', '删除光标前的字符', 'delete 删除光标后的字符'],
-    ['按键', '/tmux key esc', '退出当前菜单或取消选择', '由终端程序解释实际含义'],
-    ['按键', '/tmux key ctrl-c', '发送中断', '可能真的停止终端任务，谨慎操作'],
-    ['按键', '/tmux key tab', '发送 Tab', '还支持 space / home / end / pgup / pgdn / ctrl-d'],
-    ['屏幕', '/tmux list100', '查看最近 100 行原始快照', '包含工具日志，并重置自动追加进度'],
-    ['屏幕', '/tmux screen 50', '查看指定行数的原始快照', '支持 10–100 行，默认 40 行'],
+    ['窗格', '/tmux ls', '本地及远端窗格、编号和占用情况', '固定001–999，不随列表排序变化'],
+    ['窗格', '/tmux sel 001 ent', '接入或重连这一窗格', '返回100行并持续追加，可同时接入多个'],
+    ['窗格', '/tmux sel 001 ext', '仅断开这一连接', '其他编号及终端任务继续运行'],
+    ['输入', '/tmux sel 001 文字', '输入指定终端，并自动回车', '所有输入都需要三位编号'],
+    ['输入', '/tmux sel 001 /model', '向终端输入程序命令', 'bot不调用模型、不代选菜单'],
+    ['输入', '/tmux sel 001 type 文字', '只输入，不回车', '可继续输入或单独发送key enter'],
+    ['输入', '/tmux sel 001 send ent', '把保留词作为普通文字输入', 'ent是接入，ext是断开，list100是快照'],
+    ['按键', '/tmux sel 001 key enter', '回车确认', '一次发送一个按键，不支持重复次数'],
+    ['按键', '/tmux sel 001 key up', '向上选择或移动', 'down / left / right 同样可用'],
+    ['按键', '/tmux sel 001 key backspace', '删除光标前的字符', 'delete删除光标后的字符'],
+    ['按键', '/tmux sel 001 key esc', '取消菜单或返回', '菜单整体回显，不拆成变化的一行'],
+    ['按键', '/tmux sel 001 key ctrl-c', '发送中断', '可能停止终端任务，谨慎操作'],
+    ['按键', '/tmux sel 001 key tab', '发送Tab', '还支持space / home / end / pgup / pgdn / ctrl-d'],
+    ['屏幕', '/tmux sel 001 list100', '最近100行原始快照', '包含工具日志，仅重置001的追加进度'],
     ['群聊', '/group bind', '私聊获取一次性群绑定指令', '将完整指令 @bot 发到目标群，10 分钟有效'],
     ['群聊', '/group status', '私聊查看群绑定状态', '不同 AppID 的群成员身份不能互用'],
-    ['群聊', '/group unbind', '私聊解除群绑定', '先在已连接的原群 /tmux exit'],
+    ['群聊', '/group unbind', '私聊解除群绑定', '先在原群对所有连接执行/tmux sel 编号 ext'],
   ];
   function commandView() {
-    main.innerHTML = heading('指令手册', '群里每条消息先 @对应 bot；普通文字和程序命令会直接交给终端。') +
+    main.innerHTML = heading('指令手册', '群里每条指令先 @bot；所有输入带三位编号，多个终端独立转发。') +
       `<div class="command-controls"><div class="tabs" aria-label="指令分类">${['全部', '窗格', '输入', '按键', '屏幕', '群聊'].map(c => `<button data-category="${c}" aria-pressed="${category === c}">${c}</button>`).join('')}</div><label class="search">${icon('search')}<input id="command-search" type="search" placeholder="搜索指令或用途" aria-label="搜索指令或用途"></label></div><div id="command-list" aria-live="polite"></div><p class="code-caption">${icon('info')}选择菜单整体回显；自动追加只转发正文。429 / 5xx 错误不会隐藏。</p>`;
     document.querySelector('#command-search').value = query;
     document.querySelector('#command-search').addEventListener('input', e => { query = e.target.value; commandList(); });
@@ -168,12 +166,12 @@
     const items = [
       ['bot 没有回复 /bind 或 /tmux ls', '先查看 QQ 接入日志是否出现 READY。确认正式环境资格、AppID/AppSecret、服务器出站网络和控制台 IP 白名单；未绑定时应先在服务器获取 /bind 指令。不要并行启动同一 AppID 的第二个接入进程。'],
       ['机器人能添加，为什么进不了目标群？', 'QQ 平台的入群范围、审核及管理员条件，与本项目的本人权限不是一回事。以开放平台控制台为准，服务器代码不能绕过平台限制。平台添加完成后，仍需私聊 /group bind 建立群成员身份。'],
-      ['群里进入成功，但新输出没有继续发送', '被动回复窗口和次数耗尽后，需要平台允许主动群消息。被拒绝的内容保留队列、退避重试。重新 @bot 可提供新被动窗口；用 /tmux list100 查看即时原始屏幕，不要误以为任务已停止。'],
+      ['群里进入成功，但新输出没有继续发送', '被动回复窗口和次数耗尽后，需要平台允许主动群消息。被拒绝的内容保留队列、退避重试。重新 @bot 可提供新被动窗口；用 /tmux sel 编号 list100 查看即时原始屏幕，不要误以为任务已停止。'],
       ['连接不到 tmux，或列表里没有窗格', '桥接用户必须与 tmux 用户一致。检查生成的 service 中 --socket 路径确实对应已有 socket，服务和 Compose 实例名称、端口、令牌必须配套。不要改成 root 或将端口开放到公网。'],
-      ['显示窗格被其他 bot 占用', '互斥正在生效。先在原 bot /tmux exit，再用目标 bot 连接；也可以选择不同窗格。双方静默 30 分钟会自动释放，停止原桥接进程也会释放内核锁。'],
-      ['输出清洗不准确，或内容重复、遗漏', '这是终端屏幕采样，不是程序原生事件流。快速重复输出和未知 TUI 可能不易区分。先用 /tmux list100 核对，注意该命令会重置自动追加基线；提交经过脱敏的可复现片段，不上传真实终端历史。'],
-      ['手机输入 / 没有快捷命令提示', '面板需要平台能力及客户端同步。默认只注册 /help 和 /tmux ls，注册失败不影响手动发送。群聊仍需 @bot，菜单按键使用 /tmux key 指令。'],
-      ['发送超时，是否应该重新发送？', '先查看 /tmux list100，确认终端是否已收到输入。桥接有输入收据查询，但如果最终状态仍未知，重复提交可能造成重复执行。不要为了测试把破坏性命令反复发送。'],
+      ['显示窗格被其他 bot 占用', '互斥正在生效。先在原 bot /tmux sel 编号 ext，再用目标 bot 连接；也可以选择不同窗格。双方静默 30 分钟会自动释放，停止原桥接进程也会释放内核锁。'],
+      ['输出清洗不准确，或内容重复、遗漏', '这是终端屏幕采样，不是程序原生事件流。快速重复输出和未知 TUI 可能不易区分。先用 /tmux sel 编号 list100 核对，注意该命令会重置自动追加基线；提交经过脱敏的可复现片段，不上传真实终端历史。'],
+      ['手机输入 / 没有快捷命令提示', '面板需要平台能力及客户端同步。默认只注册 /help 和 /tmux ls，注册失败不影响手动发送。群聊仍需 @bot，菜单按键使用 /tmux sel 编号 key 指令。'],
+      ['发送超时，是否应该重新发送？', '先查看 /tmux sel 编号 list100，确认终端是否已收到输入。桥接有输入收据查询，但如果最终状态仍未知，重复提交可能造成重复执行。不要为了测试把破坏性命令反复发送。'],
       ['Docker 或用户 systemd 提示权限不足', '按 Docker 官方文档配置普通用户权限；Docker 组本身具有高宿主权限。退出 SSH 后要常驻，可由管理员启用该用户 linger。不要 sudo 初始化，也不要将所有数据改成 777。'],
     ];
     main.innerHTML = heading('故障排查', '从真实故障点检查，不用重建绑定或盲目重启所有服务。') +
