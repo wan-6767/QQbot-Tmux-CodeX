@@ -9,7 +9,11 @@ import tempfile
 import time
 from types import SimpleNamespace
 import unittest
+import importlib.util
 from unittest.mock import AsyncMock, patch
+
+if importlib.util.find_spec("gateway") is None:
+    raise unittest.SkipTest("QQ runtime absent: use Docker for the full suite; see docs/verification.md")
 
 from gateway.config import Platform
 from tmux_bot import owner
@@ -441,7 +445,8 @@ class RemoteTests(unittest.TestCase):
     def test_host_configuration_permissions_and_injection_validation(self):
         self.assertEqual(self.config(self.item)[0]["port"], 2222)
         for changes in ({"host": "server;touch /tmp/no"}, {"user": "-oProxyCommand=bad"}, {"port": True},
-                        {"name": "local"}, {"socket": "relative/socket"}):
+                        {"name": "local"}, {"socket": "relative/socket"},
+                        {"tmux_binary": "relative/tmux"}, {"tmux_binary": "/bin/tmux\ninvalid"}):
             with self.subTest(changes=changes), self.assertRaises(ValueError):
                 self.config({**self.item, **changes})
         self.key.chmod(0o644)
@@ -451,7 +456,7 @@ class RemoteTests(unittest.TestCase):
         with self.assertRaises(ValueError): load_hosts(self.path)
 
     def test_ssh_strict_verification_and_data_only_stdin(self):
-        remote = RemoteTmux(self.config(self.item)[0], self.root / "control")
+        remote = RemoteTmux(self.config({**self.item, "tmux_binary": "/custom/bin/tmux"})[0], self.root / "control")
         with patch("tmux_bot.remote.subprocess.run", return_value=SimpleNamespace(returncode=0, stdout=b'{"ok":true,"result":null}')) as run:
             remote.send("%1", "$(touch /tmp/never); '\" 中文\nline")
         command = run.call_args.args[0]
@@ -461,6 +466,18 @@ class RemoteTests(unittest.TestCase):
         self.assertNotIn("$(touch", " ".join(command))
         payload = json.loads(run.call_args.kwargs["input"])
         self.assertIn("$(touch", payload["args"][1])
+        self.assertEqual(payload["binary"], "/custom/bin/tmux")
+
+    def test_remote_missing_custom_binary_returns_an_actionable_error(self):
+        result = subprocess.run([sys.executable, "-c", worker_source()],
+            input=json.dumps({"binary": str(self.root / "missing-tmux"),
+                              "method": "panes", "args": []}).encode(),
+            capture_output=True, check=True)
+        data = json.loads(result.stdout)
+        self.assertFalse(data["ok"])
+        self.assertIn("missing-tmux", data["error"])
+        self.assertIn("--tmux-binary", data["error"])
+        self.assertNotIn(b"Traceback", result.stderr)
 
     def test_long_installation_paths_use_private_instance_scoped_short_sockets(self):
         directory = self.root / ("long-installation-" * 7) / "control"

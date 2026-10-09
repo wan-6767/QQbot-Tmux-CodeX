@@ -9,7 +9,8 @@
       "user": "youruser",
       "identity_file": "~/.ssh/id_ed25519",
       "known_hosts_file": "~/.ssh/known_hosts",
-      "socket": null
+      "socket": null,
+      "tmux_binary": null
     }
   ]
 }

@@ -30,12 +30,19 @@ tar -czf backups/default-before-upgrade.tar.gz instances/default
 
 git fetch --tags
 # 审查对应版本后再切换，不覆盖自己未提交的改动。
-git switch --detach v0.2.1
+git switch --detach v0.2.2
+python3 scripts/manage.py configure default \
+  --socket "$(tmux display-message -p '#{socket_path}')" \
+  --tmux-binary "$(command -v tmux)"
+systemctl --user daemon-reload
+systemctl --user enable --now \
+  "$PWD/instances/default/qq-tmux-bridge-default.service"
 docker compose -f deploy/compose.yaml --env-file instances/default/compose.env -p qq-tmux-default up -d --build
-systemctl --user start qq-tmux-bridge-default.service
 ```
 
 上例中的 `backups/` 已被忽略。升级验证失败，停止新版本，切回旧提交或镜像，并恢复一致的实例备份；已成功输入终端的命令不能通过代码回滚撤销。不要盲目覆盖仍在运行的数据库，也不要删除所有者绑定来“修复”连接。
+
+`configure`会按当前仓库、Python、tmux socket和可执行文件位置重建unit及Compose环境，不覆盖凭据或状态。使用生成unit的绝对路径`enable --now`，避免迁移后只按名称启动一个尚未链接的服务。完整迁移步骤见[配置与迁移](configuration.md)。
 
 ## v0.2 多终端升级
 

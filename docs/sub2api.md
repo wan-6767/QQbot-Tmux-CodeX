@@ -26,8 +26,8 @@ systemctl --user enable --now "$PWD/instances/default/qq-tmux-usage.service"
 
 在本地编辑器填写本机Sub2API原点和管理员密钥路径，密钥正文只写admin-key文件，不写入JSON、聊天、Git或命令行。
 示例用户单元假定仓库为`%h/QQbot-Tmux`，实际路径和实例名必须改成自己的值；宿主需要Python3.11+，不用额外Python依赖。
-服务固定监听127.0.0.1:18014，bot只持有独立查询令牌，管理员密钥放在数据挂载外的host-services目录，不挂入QQ容器。
-上游只允许本机IP原点，拒绝重定向，不暴露任意管理员API或执行命令接口。
+服务默认监听127.0.0.1:18014。需要换端口时，在service的ExecStart中设置`--port 18214`，并执行`python3 scripts/manage.py configure default --usage-port 18214`，随后重新加载service、重建QQ容器。两端端口必须一致；不能与桥接端口共用。
+bot只持有独立查询令牌，管理员密钥放在数据挂载外的host-services目录，不挂入QQ容器。上游只允许环回或私有IP原点，拒绝重定向，不暴露任意管理员API或执行命令接口。
 
 ## 验证和限制
 

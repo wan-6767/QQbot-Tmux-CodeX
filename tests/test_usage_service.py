@@ -1,5 +1,6 @@
 import asyncio
 import importlib.util
+import os
 from pathlib import Path
 import sys
 import threading
@@ -61,6 +62,19 @@ class ServiceTests(unittest.TestCase):
 
 
 class CommandTests(unittest.IsolatedAsyncioTestCase):
+    def test_usage_endpoint_is_configurable_but_stays_loopback_only(self):
+        with patch.dict(os.environ, {"SUB2API_USAGE_URL": "http://127.0.0.1:18214/v1/sub2api/usage"}):
+            self.assertEqual(command.usage_url(), "http://127.0.0.1:18214/v1/sub2api/usage")
+        for value in ("https://127.0.0.1:18214/v1/sub2api/usage",
+                      "http://example.com:18214/v1/sub2api/usage",
+                      "http://user@127.0.0.1:18214/v1/sub2api/usage",
+                      "http://127.0.0.1:22/v1/sub2api/usage",
+                      "http://127.0.0.1:18214/api/v1/admin",
+                      "http://127.0.0.1:18214/v1/sub2api/usage?token=test"):
+            with patch.dict(os.environ, {"SUB2API_USAGE_URL": value}):
+                with self.assertRaises(ValueError):
+                    command.usage_url()
+
     async def test_revoked_authorization_does_not_deliver_refreshed_data(self):
         authorized = True
         handler = command.UsageCommand(lambda event: authorized)

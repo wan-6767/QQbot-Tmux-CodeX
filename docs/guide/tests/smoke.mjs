@@ -65,6 +65,7 @@ try {
   await page.locator('#instance-name').fill('second-bot');
   await page.locator('#bridge-port').fill('18222');
   check((await page.locator('[data-code=initialize]').textContent()).includes('init second-bot --port 18222'), 'Custom instance parameters');
+  check((await page.locator('[data-code=initialize]').textContent()).includes('--tmux-binary "$(command -v tmux)"'), 'Generated command uses discovered tmux path');
   await page.locator('#instance-name').fill('x; touch /tmp/injected');
   check(await page.locator('#instance-name').getAttribute('aria-invalid') === 'true', 'Shell characters rejected');
   check(await page.locator('[data-copy-code=initialize]').isDisabled(), 'Invalid command cannot copy');

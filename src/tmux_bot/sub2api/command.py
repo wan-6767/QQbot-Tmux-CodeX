@@ -7,16 +7,34 @@ import logging
 import os
 from pathlib import Path
 from urllib.error import HTTPError, URLError
+from urllib.parse import urlsplit
 from urllib.request import ProxyHandler, Request, build_opener
 from zoneinfo import ZoneInfo
 
 logger = logging.getLogger("qq_tmuxbot.sub2api")
+DEFAULT_USAGE_URL = "http://127.0.0.1:18014/v1/sub2api/usage"
+
+
+def usage_url():
+    """Return the configured loopback endpoint without exposing credentials."""
+    value = os.environ.get("SUB2API_USAGE_URL", DEFAULT_USAGE_URL).strip()
+    try:
+        parsed = urlsplit(value)
+        port = parsed.port
+    except ValueError as exc:
+        raise ValueError("invalid Sub2API usage URL") from exc
+    if (parsed.scheme != "http" or parsed.hostname != "127.0.0.1"
+            or parsed.username is not None or parsed.password is not None
+            or port is None or not 1024 <= port <= 65535
+            or parsed.path != "/v1/sub2api/usage" or parsed.query or parsed.fragment):
+        raise ValueError("Sub2API usage URL must be a fixed 127.0.0.1 HTTP endpoint")
+    return value
 
 
 def fetch_usage():
     try:
         token_file = Path(os.environ.get("HERMES_HOME", "/opt/data")) / "sub2api-usage/token"
-        request = Request("http://127.0.0.1:18014/v1/sub2api/usage", data=b"{}", headers={
+        request = Request(usage_url(), data=b"{}", headers={
             "Authorization": "Bearer " + token_file.read_text().strip(),
             "Content-Type": "application/json"}, method="POST")
         with build_opener(ProxyHandler({})).open(request, timeout=110) as response:

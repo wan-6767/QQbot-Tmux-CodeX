@@ -10,7 +10,7 @@
 
 一个 QQ bot，同时管理本地和远程服务器上的多个终端。每个窗格拥有固定的001–999编号，输入指向编号，输出带终端名，不需要来回切换机器人。
 
-[从零接入](docs/getting-started.md) · [使用手册](docs/usage.md) · [故障排查](docs/troubleshooting.md) · [运行维护](docs/operations.md) · [安全说明](SECURITY.md)
+[从零接入](docs/getting-started.md) · [配置与迁移](docs/configuration.md) · [使用手册](docs/usage.md) · [故障排查](docs/troubleshooting.md) · [运行维护](docs/operations.md) · [安全说明](SECURITY.md)
 
 [文本清洗](docs/text-cleaning.md) · [键盘映射](docs/keyboard.md) · [文件收发](docs/files.md) · [SSH接入](docs/remote.md)
 
@@ -21,6 +21,7 @@
 | 你想做什么 | 阅读入口 |
 | --- | --- |
 | 第一次用：注册 QQ bot、配置凭据、部署并绑定 | [从零接入](docs/getting-started.md) |
+| 更换端口、tmux路径或迁移机器/目录 | [配置与迁移](docs/configuration.md) |
 | 已经部署：选终端、输入消息、操作菜单、查看输出 | [使用手册](docs/usage.md) · [指令速查](#指令速查) |
 | 一个bot连接多个本地/远程终端 | [多终端使用](docs/usage.md) · [SSH服务器配置](docs/remote.md) |
 | 不回复、没有新增输出、输入状态不明 | [故障排查](docs/troubleshooting.md) |
@@ -111,7 +112,7 @@ Bot：退出转发，服务器上的任务仍然运行
 
 ## 快速部署
 
-支持 **Linux + Python 3.11及以上 + tmux + Docker Compose v2**。QQ接入通过固定版本的依赖镜像运行，只启动本项目的机器人入口；**不需要额外部署Agent服务，不调用大模型**。宿主桥接仅使用Python标准库。
+支持 **Linux + Python 3.11及以上 + tmux + Docker Compose v2**。宿主配置工具和桥接仅使用Python标准库；QQ bot及完整集成测试必须使用Docker。固定基础镜像提供QQ适配器所需的上游运行类型和安全组件，容器只启动本项目入口，不启动Agent服务、不调用大模型。仓库中的适配器快照本身不是完整裸机运行库。
 
 先在 [QQ机器人开放平台](https://q.qq.com/) 创建机器人，取得AppID和AppSecret，并按平台要求配置测试成员、私聊或群聊使用范围。服务器无法绕过QQ平台的审核、可用范围和主动消息权限。
 
@@ -128,7 +129,8 @@ tmux new-session -d -s work
 
 python3 scripts/manage.py init default \
   --port 18010 \
-  --socket "$(tmux display-message -p '#{socket_path}')"
+  --socket "$(tmux display-message -p '#{socket_path}')" \
+  --tmux-binary "$(command -v tmux)"
 ```
 
 实例生成在 `instances/default/`。编辑其中的 `bot.env`，填写：
@@ -138,7 +140,7 @@ QQ_APP_ID=你的AppID
 QQ_CLIENT_SECRET=你的AppSecret
 ```
 
-真实配置、绑定信息和令牌均不属于源码，已由Git和Docker构建上下文忽略。初始化遇到已存在实例会拒绝覆盖，避免丢失绑定和投递进度。
+真实配置、绑定信息和令牌均不属于源码，已由Git和Docker构建上下文忽略。初始化会先校验端口、socket和tmux路径，遇到已有实例会拒绝覆盖。查看或迁移配置使用`python3 scripts/manage.py show default`和`configure`，完整字段见[配置与迁移](docs/configuration.md)。
 
 ### 2. 启动本机桥接
 
@@ -177,7 +179,8 @@ python3 scripts/manage.py pairing default
 
 ```bash
 python3 scripts/manage.py init second --port 18011 \
-  --socket "$(tmux display-message -p '#{socket_path}')"
+  --socket "$(tmux display-message -p '#{socket_path}')" \
+  --tmux-binary "$(command -v tmux)"
 # 填写 instances/second/bot.env，使用另一套AppID和AppSecret。
 systemctl --user enable --now \
   "$PWD/instances/second/qq-tmux-bridge-second.service"
@@ -255,7 +258,7 @@ QQ回显 ← 持久化投递队列 ← 段落/菜单/噪音识别 ← 屏幕采�
 | `src/tmux_bot/terminal_files.py`、`files.py` | 上传索引、宿主缓存校验、下载快照和精确清理 |
 | `deploy/` | Compose、空凭据及SSH配置示例 |
 | `vendor/` | QQ接口适配代码快照和第三方许可证 |
-| `scripts/` | 实例初始化、绑定口令及发布检查 |
+| `scripts/` | 实例初始化、配置迁移、绑定口令及发布检查 |
 | `tests/` | 可销毁tmux、路由、互斥、段落、错误及QQ投递回归 |
 | `docs/guide/` | 可选离线接入助手和浏览器回归，不负责网站发布 |
 | `docs/` | 注册接入、使用、排障、升级备份与发布 |
@@ -277,12 +280,16 @@ QQ容器只挂载自身数据目录。宿主桥接以tmux拥有者运行，不�
 ## 测试与发布
 
 ```bash
+# 不需要QQ运行库的宿主配置回归
+python3 -m unittest tests.test_setup -v
+
+# 完整QQ、tmux、文件和投递回归；Docker是必需条件
 python3 scripts/check_release.py
 docker build --target test -t qq-tmux-relay-test .
 docker run --rm --network none qq-tmux-relay-test
 ```
 
-测试创建独立tmux socket，不碰现有工作窗格；QQ传输使用可控响应，不会给真实聊天发送测试消息。CI执行相同命令，覆盖终端转发、文件收发、额度查询与本人授权。
+宿主回归验证配置生成、迁移、端口冲突和错误信息。完整测试创建独立tmux socket，不碰现有工作窗格；QQ传输使用可控响应，不会给真实聊天发送测试消息。没有Docker时QQ运行时测试会明确跳过，不能据此声称完整通过。CI执行两档命令。
 
 ## 必须知道的限制
 

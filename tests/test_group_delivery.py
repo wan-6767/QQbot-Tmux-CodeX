@@ -2,8 +2,12 @@ import asyncio
 import os
 import tempfile
 import unittest
+import importlib.util
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
+
+if importlib.util.find_spec("gateway") is None:
+    raise unittest.SkipTest("QQ runtime absent: use Docker for the full suite; see docs/verification.md")
 
 from gateway.config import PlatformConfig
 from tmux_bot import app, group_delivery

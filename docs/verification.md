@@ -4,7 +4,15 @@
 
 ## 自动回归
 
-在仓库根目录运行：
+先运行不需要QQ容器依赖的宿主配置回归：
+
+```bash
+python3 -m unittest tests.test_setup -v
+```
+
+它验证自定义tmux路径、端口冲突不写半成品、旧实例迁移保留凭据、监听错误和编号排序。然后运行完整回归：
+
+可选的宿主测试发现命令为`PYTHONPATH=src python3 -m unittest discover -s tests -v`。源码采用`src/`布局，直接执行发现命令需要这个路径；缺少QQ运行库时对应模块明确跳过。
 
 ```bash
 python3 scripts/check_release.py --indexed
@@ -13,6 +21,8 @@ docker run --rm --network none qq-tmux-relay-test
 ```
 
 测试使用独立tmux socket和可销毁会话，不操作现有工作窗格。QQ接入和额度上游使用可控响应，不向真实聊天发消息、不刷新真实Sub2API账号。
+
+完整回归依赖Docker基础镜像中的QQ运行库。裸机执行测试发现时，缺少该运行库的测试模块会显示为`skipped`；这只证明宿主测试可运行，不等于完整回归通过。发布证据必须包含Docker测试零失败，并核对没有意外跳过。
 
 | 需求 | 验证要点 |
 | --- | --- |
@@ -30,6 +40,7 @@ docker run --rm --network none qq-tmux-relay-test
 | 额度及积分 | 强制刷新和新鲜度，8格进度条，积分精度，真实错误不显示成0 |
 | 帮助与QQ指令面板 | /help与模块帮助不输入终端，面板只改本人作用域 |
 | 仓库和发布 | 凭据/状态不进Git，公开部署文件可初始化，保留许可证 |
+| 可配置与迁移 | tmux/Python绝对路径重建、端口预检、旧数据保留、错误不裸抛traceback |
 
 ## 真实远端测试
 

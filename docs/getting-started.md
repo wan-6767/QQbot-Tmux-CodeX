@@ -4,7 +4,7 @@
 
 ## 先确认适合你
 
-你需要 Linux、Python 3.11及以上、tmux、Git、Docker Engine 和 Compose v2，以及一个已获 QQ 私聊场景权限的机器人。群聊是可选能力。不需要模型 API Key、域名、SSL证书或公网回调服务器；QQ接入主动建立出站 HTTPS/WebSocket，桥接只监听本机。
+你需要 Linux、Python 3.11及以上、tmux、Git、Docker Engine 和 Compose v2，以及一个已获 QQ 私聊场景权限的机器人。Docker是QQ进程的运行条件，不只是可选测试工具；只有宿主桥接和配置命令可以脱离Docker运行。群聊是可选能力。不需要模型 API Key、域名、SSL证书或公网回调服务器；QQ接入主动建立出站 HTTPS/WebSocket，桥接只监听本机。
 
 这是一套可信本人使用的远程终端工具，不是公网多用户服务。绑定账号可以输入终端命令，实际权限等同所选终端用户，详见 [安全边界](../SECURITY.md)。
 
@@ -45,7 +45,8 @@ cd QQbot-Tmux
 # 已有 tmux 会话时不必创建这一项。
 tmux new-session -d -s work
 python3 scripts/manage.py init default --port 18010 \
-  --socket "$(tmux display-message -p '#{socket_path}')"
+  --socket "$(tmux display-message -p '#{socket_path}')" \
+  --tmux-binary "$(command -v tmux)"
 
 nano instances/default/bot.env
 ```
@@ -57,7 +58,7 @@ QQ_APP_ID=你的AppID
 QQ_CLIENT_SECRET=你的AppSecret
 ```
 
-`instances/default/` 保存该 bot 的凭据、令牌、所有者与群绑定及投递状态。它已被Git和Docker构建忽略；初始化拒绝覆盖已存在的实例。忘记密钥时在QQ平台轮换，然后仅更新自己的 `bot.env`。
+`instances/default/` 保存该 bot 的凭据、令牌、所有者与群绑定及投递状态。它已被Git和Docker构建忽略；初始化会在写盘前检查端口占用、tmux路径和socket，并拒绝覆盖已存在实例。忘记密钥时在QQ平台轮换，然后仅更新自己的 `bot.env`。参数和迁移方法见[配置与迁移](configuration.md)。
 
 ## 4. 启动桥接与 QQ 接入
 
@@ -115,7 +116,8 @@ python3 scripts/manage.py pairing default
 
 ```bash
 python3 scripts/manage.py init second --port 18011 \
-  --socket "$(tmux display-message -p '#{socket_path}')"
+  --socket "$(tmux display-message -p '#{socket_path}')" \
+  --tmux-binary "$(command -v tmux)"
 nano instances/second/bot.env
 systemctl --user enable --now "$PWD/instances/second/qq-tmux-bridge-second.service"
 docker compose -f deploy/compose.yaml --env-file instances/second/compose.env -p qq-tmux-second up -d --build

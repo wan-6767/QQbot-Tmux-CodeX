@@ -7,10 +7,11 @@ QQbot-Tmux的介绍、部署、使用和开发资料统一在这里。GitHub直�
 | 阅读顺序 | 文档 | 内容 |
 | --- | --- | --- |
 | 1 | [从零接入](getting-started.md) | 注册QQ bot、填写凭据、部署、私聊和群绑定 |
-| 2 | [使用手册](usage.md) | 多终端编号、模块化指令、输入和持续追加 |
-| 3 | [远程服务器](remote.md) | IP/端口/密钥配置、指纹校验、离线提示 |
-| 4 | [键盘映射](keyboard.md) | 方向/编辑/F键、字符与组合键、终端限制 |
-| 5 | [文件收发](files.md) | 上传路径、/file dl、/file rm、/file help |
+| 2 | [配置与迁移](configuration.md) | 端口、tmux路径、socket、超时、SSH及跨机器迁移 |
+| 3 | [使用手册](usage.md) | 多终端编号、模块化指令、输入和持续追加 |
+| 4 | [远程服务器](remote.md) | IP/端口/密钥配置、指纹校验、离线提示 |
+| 5 | [键盘映射](keyboard.md) | 方向/编辑/F键、字符与组合键、终端限制 |
+| 6 | [文件收发](files.md) | 上传路径、/file dl、/file rm、/file help |
 | 可选 | [Sub2API额度](sub2api.md) | 强制刷新、积分、进度条及独立宿主服务 |
 
 ## 原理与维护

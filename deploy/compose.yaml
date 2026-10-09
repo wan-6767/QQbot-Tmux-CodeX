@@ -12,6 +12,7 @@ services:
     environment:
       TMUX_BOT_NAME: "${BOT_NAME:-QQ Tmux}"
       TMUX_BRIDGE_URL: "http://127.0.0.1:${BRIDGE_PORT:-18010}"
+      SUB2API_USAGE_URL: "${SUB2API_USAGE_URL:-http://127.0.0.1:18014/v1/sub2api/usage}"
     volumes:
       - "${BOT_DATA_DIR:?Run scripts/manage.py init first}:/opt/data"
     healthcheck:

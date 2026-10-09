@@ -29,7 +29,7 @@
     toast.textContent = message; toast.hidden = false;
     clearTimeout(toastTimer); toastTimer = setTimeout(() => { toast.hidden = true; }, 2800);
   }
-  function heading(title, text, eyebrow = 'QQBOT-TMUX / 0.2.1') {
+  function heading(title, text, eyebrow = 'QQBOT-TMUX / 0.2.2') {
     return `<div class="page-heading"><div class="eyebrow">${eyebrow}</div><h1>${title}</h1><p class="subheading">${text}</p></div>`;
   }
   function codeTool(label, key) {
@@ -41,7 +41,7 @@
     const unit = `qq-tmux-bridge-${n}.service`;
     return {
       prepare: 'python3 --version\ntmux -V\ndocker version\ndocker compose version',
-      initialize: `git clone https://github.com/wan-6767/QQbot-Tmux-CodeX.git QQbot-Tmux\ncd QQbot-Tmux\n\n# 已有 tmux 会话时，跳过下一行。\ntmux new-session -d -s work\npython3 scripts/manage.py init ${n} --port ${p} \\\n  --socket "$(tmux display-message -p '#{socket_path}')"`,
+      initialize: `git clone https://github.com/wan-6767/QQbot-Tmux-CodeX.git QQbot-Tmux\ncd QQbot-Tmux\n\n# 已有 tmux 会话时，跳过下一行。\ntmux new-session -d -s work\npython3 scripts/manage.py init ${n} --port ${p} \\\n  --socket "$(tmux display-message -p '#{socket_path}')" \\\n  --tmux-binary "$(command -v tmux)"`,
       credentials: `nano instances/${n}/bot.env`,
       launch: `systemctl --user enable --now \\\n  "$PWD/instances/${n}/${unit}"\n${compose} up -d --build`,
       linger: 'sudo loginctl enable-linger "$USER"',

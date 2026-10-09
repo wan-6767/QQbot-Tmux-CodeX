@@ -4,9 +4,11 @@
 
 ## 运行依赖
 
-QQ连接层使用上游适配器、运行类型及安全辅助组件。Dockerfile固定基础镜像摘要，容器入口仅运行本项目的`tmux_bot.app`，不启动Agent服务。宿主桥接依赖Python标准库、tmux及SSH客户端。
+系统分为宿主桥接和QQ容器。宿主桥接负责tmux、SSH、稳定编号和认证HTTP，只依赖Python标准库、tmux及SSH客户端。QQ容器负责官方Gateway/REST、身份绑定、投递队列、文件与指令路由。
 
-第三方来源和MIT版权声明保留在`NOTICE`及`vendor/`。更换适配器或基础镜像时，应核对接口、运行类型、安全辅助依赖，并运行完整回归。
+QQ连接层使用固定基础镜像中提供的上游`gateway`运行类型和安全辅助组件，仓库只保留经过审查的QQ适配器快照，并未复制整套运行库。因此`tmux_bot.app`不能作为无依赖Python程序直接启动：QQ bot与完整集成回归必须走Docker；宿主配置、桥接和对应测试可以裸机运行。容器入口只运行本项目的`tmux_bot.app`，不启动Agent服务或模型流程。
+
+第三方来源和MIT版权声明保留在`NOTICE`及`vendor/`。这是一条明确的运行时依赖，不应表述为完全无依赖的独立QQ客户端。更换适配器或基础镜像时，应核对接口、运行类型、安全辅助依赖，并运行完整回归。
 
 ## 消息链路
 
@@ -38,6 +40,8 @@ QQ私聊 / 已绑定群的本人@消息
 | 最新额度和积分 | `sub2api/` | `test_usage_reader.py`、`test_usage_service.py` |
 | QQ输入框面板 | `qq_commands.py` | `test_panel.py` |
 | 初始化、私有文件与发布安全 | `scripts/` | `test_setup.py` |
+
+本机端口、socket、tmux路径、闲置时间和锁目录由`scripts/manage.py`管理，生成内容位于实例目录。跨机器或目录迁移使用`configure`重建绝对路径，不修改凭据、绑定、编号和投递状态；参见[配置与迁移](configuration.md)。
 
 上表源码均相对`src/tmux_bot/`，回归均相对`tests/`。单窗格旧协议兼容类保留用于历史回归；当前`TerminalAdapter`实际创建`MultiGateway`，QQ入口使用多编号协议，不开放旧版无编号选择模式。
 

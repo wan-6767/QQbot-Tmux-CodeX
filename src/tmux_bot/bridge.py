@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 import re
 import secrets
+import shutil
 import sqlite3
 import subprocess
 import tempfile
@@ -106,6 +107,26 @@ class RelayError(Exception):
     pass
 
 
+def resolve_tmux_binary(value: str | None = None) -> str:
+    """Resolve tmux once so services do not depend on a hard-coded location."""
+    requested = value or os.environ.get("TMUX_BINARY") or "tmux"
+    if not isinstance(requested, str) or not requested or any(ord(char) < 32 for char in requested):
+        raise RelayError("tmux 可执行文件配置无效。")
+    expanded = os.path.expanduser(requested)
+    if os.path.isabs(expanded):
+        candidate = str(Path(expanded).resolve())
+        if not Path(candidate).is_file() or not os.access(candidate, os.X_OK):
+            raise RelayError(f"tmux 不可执行：{candidate}；请用 --tmux-binary 指定真实路径。")
+    else:
+        candidate = shutil.which(requested) or ""
+        if not candidate:
+            raise RelayError(
+                f"PATH 中找不到 {requested}；请安装 tmux，或用 --tmux-binary 指定绝对路径。"
+            )
+        candidate = str(Path(candidate).resolve())
+    return candidate
+
+
 def normalize_key(name: str) -> str:
     """Validate keyboard notation before tmux can fall back to literal text."""
     if not isinstance(name, str) or not name or len(name) > 80:
@@ -196,8 +217,9 @@ class PaneLocks:
 
 
 class Tmux:
-    def __init__(self, socket: str | None = None):
-        self.prefix = ["/usr/bin/tmux"] + (["-S", socket] if socket else [])
+    def __init__(self, socket: str | None = None, binary: str | None = None):
+        self.binary = resolve_tmux_binary(binary)
+        self.prefix = [self.binary] + (["-S", socket] if socket else [])
         self.text_sent_at: dict[str, float] = {}
 
     def run(self, *args: str, input: bytes | None = None) -> str:
@@ -205,8 +227,10 @@ class Tmux:
             result = subprocess.run(
                 self.prefix + list(args), input=input, capture_output=True, timeout=3,
             )
-        except (subprocess.TimeoutExpired, OSError) as exc:
-            raise RelayError("tmux 操作失败或超时，请重新列出窗格。") from exc
+        except subprocess.TimeoutExpired as exc:
+            raise RelayError(f"tmux 操作超时（{self.binary}），请重新列出窗格。") from exc
+        except OSError as exc:
+            raise RelayError(f"无法执行 tmux（{self.binary}）：{exc.strerror or exc}") from exc
         if result.returncode:
             raise RelayError("tmux 窗格不存在、已关闭，或当前没有 tmux 服务。")
         return result.stdout.decode("utf-8", errors="replace")
@@ -770,34 +794,55 @@ def serve(relay: Relay, token: str, port: int) -> None:
             with relay.lock:
                 relay._expire()
 
-    server = Server(("127.0.0.1", port), Handler)
+    try:
+        server = Server(("127.0.0.1", port), Handler)
+    except OSError as exc:
+        detail = exc.strerror or str(exc)
+        raise RelayError(f"无法监听 127.0.0.1:{port}：{detail}；请检查端口占用和实例配置。") from exc
     server.daemon_threads = True
-    server.serve_forever()
+    try:
+        server.serve_forever()
+    finally:
+        server.server_close()
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--token-file", type=Path, required=True)
     parser.add_argument("--socket")
+    parser.add_argument("--tmux-binary", help="tmux executable; defaults to TMUX_BINARY or PATH discovery")
     parser.add_argument("--port", type=int, default=18010)
+    parser.add_argument("--idle-seconds", type=int, default=1800)
     parser.add_argument("--lock-dir", type=Path)
     parser.add_argument("--bot-name", default="终端 bot")
     parser.add_argument("--hosts-file", type=Path)
     args = parser.parse_args()
-    token = args.token_file.read_text().strip()
-    if len(token) < 32:
-        parser.error("bridge token must be at least 32 characters")
-    # The ordinary-user systemd service also supports launching this file directly.
-    import sys
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from tmux_bot.bridge import Tmux as RuntimeTmux, PaneLocks as RuntimePaneLocks
-    from tmux_bot.multiplex import MultiRelay
-    from tmux_bot.remote import TmuxFleet, load_hosts
-    pane_locks = RuntimePaneLocks(args.lock_dir, args.socket or "default", args.bot_name) if args.lock_dir else None
-    hosts_file = args.hosts_file or args.token_file.with_name("hosts.json")
-    fleet = TmuxFleet(RuntimeTmux(args.socket), load_hosts(hosts_file), args.token_file.parent / "ssh")
-    serve(MultiRelay(fleet, args.token_file.parent,
-                     pane_locks=pane_locks), token, args.port)
+    try:
+        token = args.token_file.read_text().strip()
+        if len(token) < 32:
+            raise RelayError("桥接令牌必须至少 32 个字符。")
+        # The ordinary-user systemd service also supports launching this file directly.
+        import sys
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+        # Avoid loading this file a second time as tmux_bot.bridge when it is
+        # executed by path.  A duplicate module would also duplicate RelayError,
+        # turning an actionable startup error back into a raw traceback.
+        sys.modules.setdefault("tmux_bot.bridge", sys.modules[__name__])
+        from tmux_bot.bridge import Tmux as RuntimeTmux, PaneLocks as RuntimePaneLocks
+        from tmux_bot.multiplex import MultiRelay
+        from tmux_bot.remote import TmuxFleet, load_hosts
+        if not 60 <= args.idle_seconds <= 86400:
+            raise RelayError("idle-seconds 必须在 60–86400 之间。")
+        if not 1024 <= args.port <= 65535:
+            raise RelayError("port 必须在 1024–65535 之间。")
+        local_tmux = RuntimeTmux(args.socket, args.tmux_binary)
+        pane_locks = RuntimePaneLocks(args.lock_dir, args.socket or "default", args.bot_name) if args.lock_dir else None
+        hosts_file = args.hosts_file or args.token_file.with_name("hosts.json")
+        fleet = TmuxFleet(local_tmux, load_hosts(hosts_file), args.token_file.parent / "ssh")
+        serve(MultiRelay(fleet, args.token_file.parent, idle_seconds=args.idle_seconds,
+                         pane_locks=pane_locks), token, args.port)
+    except (OSError, ValueError, RelayError) as exc:
+        parser.error("桥接启动失败：" + str(exc))
 
 
 if __name__ == "__main__":

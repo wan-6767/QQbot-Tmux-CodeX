@@ -11,6 +11,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Check source-only release
         run: python3 scripts/check_release.py --indexed
+      - name: Test host configuration and migration
+        run: python3 -m unittest tests.test_setup -v
       - name: Build isolated test image
         run: docker build --target test -t qq-tmux-relay-test .
       - name: Test native QQ routing and disposable tmux servers

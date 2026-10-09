@@ -13,17 +13,17 @@ import shlex
 import stat
 import subprocess
 
-from .bridge import KEYS, KEY_NAMES, RelayError, Tmux, normalize_key
+from .bridge import KEYS, KEY_NAMES, RelayError, Tmux, normalize_key, resolve_tmux_binary
 
 
 def worker_source():
     # The remote uses the exact tested Tmux class; prompts travel only as JSON stdin.
-    return ("import json,os,re,subprocess,sys,time\nfrom pathlib import Path\n"
-            "class RelayError(Exception): pass\nKEYS=" + repr(KEYS) + "\nKEY_NAMES=" + repr(KEY_NAMES) + "\n" + inspect.getsource(normalize_key) + "\n" + inspect.getsource(Tmux) +
+    return ("import json,os,re,shutil,subprocess,sys,time\nfrom pathlib import Path\n"
+            "class RelayError(Exception): pass\nKEYS=" + repr(KEYS) + "\nKEY_NAMES=" + repr(KEY_NAMES) + "\n" + inspect.getsource(resolve_tmux_binary) + "\n" + inspect.getsource(normalize_key) + "\n" + inspect.getsource(Tmux) +
             "\np=json.load(sys.stdin)\n"
             "try:\n"
             " if p['method'] not in ('panes','capture','viewport','send','key'): raise ValueError('invalid operation')\n"
-            " t=Tmux(p.get('socket'))\n"
+            " t=Tmux(p.get('socket'), p.get('binary'))\n"
             " result=getattr(t,p['method'])(*p.get('args',[]))\n"
             " print(json.dumps({'ok':True,'result':result}))\n"
             "except (RelayError,ValueError,OSError) as e:\n"
@@ -56,7 +56,8 @@ class RemoteTmux:
             settings["user"] + "@" + settings["host"], shlex.join(["python3", "-c", worker_source()])]
 
     def rpc(self, method, *args):
-        payload = {"method": method, "args": args, "socket": self.settings.get("socket")}
+        payload = {"method": method, "args": args, "socket": self.settings.get("socket"),
+                   "binary": self.settings.get("tmux_binary")}
         try:
             result = subprocess.run(self.command, input=json.dumps(payload).encode(), capture_output=True, timeout=12)
             if result.returncode:
@@ -108,6 +109,10 @@ def load_hosts(path):
         socket = item.get("socket")
         if socket is not None and (not isinstance(socket, str) or not socket.startswith("/") or any(ord(c) < 32 for c in socket)):
             raise ValueError("remote socket must be an absolute path")
+        binary = item.get("tmux_binary")
+        if binary is not None and (not isinstance(binary, str) or not binary.startswith("/")
+                                   or any(ord(c) < 32 for c in binary)):
+            raise ValueError("remote tmux_binary must be an absolute path")
         for key in ("identity_file", "known_hosts_file"):
             if not isinstance(item.get(key), str):
                 raise ValueError("SSH identity_file and known_hosts_file are required")

@@ -183,7 +183,7 @@ class MultiRelay:
                 self.db.execute("UPDATE terminals SET pane=? WHERE id=?", (json.dumps(pane), channel))
             result.append((channel, pane))
         self.db.commit()
-        return result
+        return sorted(result, key=lambda item: int(item[0]))
 
     def _decorate(self, channel, result):
         _, pane, source = self._row(channel)
@@ -320,7 +320,8 @@ class MultiRelay:
         with self.lock:
             self._expire()
             connections = []
-            for channel, in self.db.execute("SELECT id FROM terminals WHERE source IS NOT NULL").fetchall():
+            for channel, in self.db.execute(
+                    "SELECT id FROM terminals WHERE source IS NOT NULL ORDER BY CAST(id AS INTEGER)").fetchall():
                 child = self._child(channel)
                 if child.selected or child.disconnected:
                     connections.append(self._decorate(channel, child._response("") if child.selected else child.state()))

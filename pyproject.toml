@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "qq-tmux-relay"
-version = "0.2.1"
+version = "0.2.2"
 description = "Owner-only QQ bot relay for existing tmux terminals"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -13,8 +13,8 @@ authors = [{name = "Wan-zone"}]
 dependencies = []
 
 [project.urls]
-Repository = "https://github.com/Wan-zone/QQbot-Tmux"
-Issues = "https://github.com/Wan-zone/QQbot-Tmux/issues"
+Repository = "https://github.com/wan-6767/QQbot-Tmux-CodeX"
+Issues = "https://github.com/wan-6767/QQbot-Tmux-CodeX/issues"
 
 [project.scripts]
 qq-tmux-bridge = "tmux_bot.bridge:main"

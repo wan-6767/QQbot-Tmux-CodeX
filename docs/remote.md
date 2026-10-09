@@ -31,6 +31,8 @@ python3 scripts/manage.py hosts default
 systemctl --user restart qq-tmux-bridge-default.service
 ```
 
+远端默认从SSH会话的`PATH`发现tmux。若远端使用`/usr/local`、Nix store或自定义安装，在服务器条目增加`"tmux_binary": "/绝对路径/tmux"`；该路径属于远端，不是运行bot的本机。完整字段见[配置与迁移](configuration.md)。
+
 配置重启桥接后生效。远端需要SSH密钥登录权限、Python 3.10+、tmux及该用户已有的会话，不需要常驻服务、远端安装文件或额外公网端口。不要为了连接把用户改成root。
 
 ## 安全边界

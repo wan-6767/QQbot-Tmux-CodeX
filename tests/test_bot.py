@@ -6,7 +6,11 @@ import tempfile
 import time
 from types import SimpleNamespace
 import unittest
+import importlib.util
 from unittest.mock import AsyncMock, patch
+
+if importlib.util.find_spec("gateway") is None:
+    raise unittest.SkipTest("QQ runtime absent: use Docker for the full suite; see docs/verification.md")
 
 from gateway.config import Platform, PlatformConfig
 from gateway.platforms.qqbot.adapter import QQAdapter

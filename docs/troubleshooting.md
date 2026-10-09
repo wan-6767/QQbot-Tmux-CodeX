@@ -7,6 +7,10 @@
 | `Permission denied` 访问Docker | 当前普通用户的Docker权限 | 正确配置Docker使用权限，重新登录；不要把桥接改成root |
 | `tmux socket does not exist` | 当前用户是否有tmux会话 | `tmux ls`；使用 `tmux display-message -p '#{socket_path}'` 的真实结果 |
 | `systemctl --user` 无法连接 | 用户systemd会话 | 从正常用户SSH登录；无用户systemd时用进程管理器启动生成unit中的相同命令 |
+| `Unit ... could not be found` | 只按名称启动，生成unit尚未链接 | `systemctl --user enable --now "$PWD/instances/<name>/qq-tmux-bridge-<name>.service"` |
+| `PATH 中找不到 tmux`或`tmux 不可执行` | tmux安装位置与服务PATH不同 | `manage.py configure <name> --tmux-binary "$(command -v tmux)"`后重载unit |
+| `无法监听 127.0.0.1` | 端口被进程或另一实例占用 | 用`manage.py show`核对端口，改为唯一端口后重新生成；不要开放公网监听 |
+| 裸机导入`gateway`失败 | QQ完整运行库只在固定容器中 | 用Docker启动bot和跑完整测试；裸机只运行宿主配置/桥接测试 |
 | SSH退出后桥接停止 | 用户linger | 管理员执行 `sudo loginctl enable-linger "$USER"` |
 | QQ token获取失败/401 | AppID、AppSecret是否属于同一个bot | 核对本地 `bot.env`；轮换后重新创建该容器，不在Issue贴原值 |
 | 接口访问源IP不在白名单 | QQ平台IP白名单 | 配置实际出口公网IP；代理或更换网络后重新核对 |
@@ -19,7 +23,7 @@
 | 发送超时或提交状态不明 | 输入收据与终端原始画面 | 先 `/tmux sel 编号 tail 100` 核对，避免重复提交 |
 | 远程服务器无法连接 | hosts配置、文件权限、已核验主机指纹、出站SSH | 见[SSH接入](remote.md)，不关闭主机校验；本地窗格可继续使用 |
 | 终端有输出但QQ没有追加 | 是否只出现被隐藏的工具日志，或QQ主动消息被拒绝 | tail N核对；重新@提供被动窗口；平台限制未解除时保留队列重试 |
-| 段落似乎漏了/未知TUI | 屏幕采样与菜单识别限制 | List100核对，提交脱敏最小复现；不要提供真实终端历史 |
+| 段落似乎漏了/未知TUI | 屏幕采样与菜单识别限制 | `/tmux sel 编号 tail 100`核对，提交脱敏最小复现；不要提供真实终端历史 |
 | 输入框 `/` 没有面板 | QQ能力/客户端同步、panel日志 | 手动发 `/tmux help` 不受影响；等待客户端同步或检查能力 |
 | 上传文件未收到路径 | QQ是否有附件事件、本人身份及缓存映射是否正确 | 群中@并携带附件，不是全群网盘监听；见[文件收发](files.md) |
 
@@ -36,6 +40,8 @@ journalctl --user -u qq-tmux-bridge-default.service -n 40 --no-pager
 docker compose -f deploy/compose.yaml --env-file instances/default/compose.env -p qq-tmux-default ps
 docker compose -f deploy/compose.yaml --env-file instances/default/compose.env -p qq-tmux-default logs --tail 50
 ```
+
+桥接因无效路径或端口启动失败时会给出单条可操作错误，并以配置错误状态退出；生成unit不会对这类错误无限重启。参数、迁移和保留数据范围见[配置与迁移](configuration.md)。
 
 公开问题附系统/版本、执行步骤、预期与实际行为、**脱敏**错误即可。不要附 `docker inspect` 原始输出、完整 `.env`、owner/group JSON、数据库、聊天记录或截图中的密钥。状态文件不是可以随便粘贴的诊断包。
 

@@ -49,24 +49,30 @@ def make_server(reader, token, port=18014):
 
 
 def main():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path)
     parser.add_argument("--token-file", type=Path, required=True)
+    parser.add_argument("--port", type=int, default=18014)
     parser.add_argument("--init-token", action="store_true")
     args = parser.parse_args()
-    if args.init_token:
-        args.token_file.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-        descriptor = os.open(args.token_file, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
-        with os.fdopen(descriptor, "w") as stream:
-            stream.write(secrets.token_urlsafe(32))
-        return
-    if not args.config:
-        parser.error("--config is required")
-    token = args.token_file.read_text().strip()
-    if len(token) < 32:
-        raise ValueError("quota service token is missing or invalid")
-    with make_server(UsageReader(args.config), token) as server:
-        server.serve_forever()
+    try:
+        if not 1024 <= args.port <= 65535:
+            raise ValueError("port must be between 1024 and 65535")
+        if args.init_token:
+            args.token_file.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+            descriptor = os.open(args.token_file, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+            with os.fdopen(descriptor, "w") as stream:
+                stream.write(secrets.token_urlsafe(32))
+            return
+        if not args.config:
+            raise ValueError("--config is required")
+        token = args.token_file.read_text().strip()
+        if len(token) < 32:
+            raise ValueError("quota service token is missing or invalid")
+        with make_server(UsageReader(args.config), token, args.port) as server:
+            server.serve_forever()
+    except (OSError, ValueError, KeyError, TypeError, RuntimeError) as exc:
+        parser.error("quota service startup failed: " + str(exc))
 
 
 if __name__ == "__main__":
