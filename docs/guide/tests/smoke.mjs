@@ -55,6 +55,8 @@ try {
   await page.goto(origin + '/index.html');
   await page.locator('#instance-name').waitFor();
   check(await page.locator('h1').textContent() === 'QQbot-Tmux', 'Product name visible');
+  const version = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8')).version;
+  check((await page.locator('body').textContent()).includes('v' + version), 'Visible guide version matches package');
   check(await page.locator('[type=password]').count() === 0, 'No credential intake');
   await fits(page, 'desktop setup');
   await page.screenshot({ path: resolve(results, 'desktop-setup.png') });
