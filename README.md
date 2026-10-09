@@ -111,7 +111,7 @@ Bot：退出转发，服务器上的任务仍然运行
 
 ## 快速部署
 
-支持 **Linux + Python 3.11及以上 + tmux + Docker Compose v2**。QQ接入通过固定版本的依赖镜像运行，只启动本项目的机器人入口；**不需要额外部署Agent服务，不调用大模型，不运行秘书、日记或计划流程**。宿主桥接仅使用Python标准库。
+支持 **Linux + Python 3.11及以上 + tmux + Docker Compose v2**。QQ接入通过固定版本的依赖镜像运行，只启动本项目的机器人入口；**不需要额外部署Agent服务，不调用大模型**。宿主桥接仅使用Python标准库。
 
 先在 [QQ机器人开放平台](https://q.qq.com/) 创建机器人，取得AppID和AppSecret，并按平台要求配置测试成员、私聊或群聊使用范围。服务器无法绕过QQ平台的审核、可用范围和主动消息权限。
 
@@ -281,7 +281,7 @@ docker build --target test -t qq-tmux-relay-test .
 docker run --rm --network none qq-tmux-relay-test
 ```
 
-测试创建独立tmux socket，不碰现有工作窗格；QQ传输使用可控响应，不会给真实聊天发送测试消息。CI执行相同命令。测试覆盖终端转发、文件收发、额度查询与本人授权，不包含私人秘书或日记业务。
+测试创建独立tmux socket，不碰现有工作窗格；QQ传输使用可控响应，不会给真实聊天发送测试消息。CI执行相同命令，覆盖终端转发、文件收发、额度查询与本人授权。
 
 ## 必须知道的限制
 
@@ -294,4 +294,4 @@ docker run --rm --network none qq-tmux-relay-test
 
 ## 许可与致谢
 
-采用 [MIT License](LICENSE)。第三方组件的来源、版权与许可说明保留在 [NOTICE](NOTICE) 和 `vendor/`，当前运行依赖见 [架构说明](docs/architecture.md#运行依赖与业务独立性)。终端会话由tmux提供，QQ平台能力由腾讯QQ机器人官方接口提供。
+采用 [MIT License](LICENSE)。第三方组件的来源、版权与许可说明保留在 [NOTICE](NOTICE) 和 `vendor/`，当前运行依赖见 [架构说明](docs/architecture.md#运行依赖)。终端会话由tmux提供，QQ平台能力由腾讯QQ机器人官方接口提供。

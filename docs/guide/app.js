@@ -109,7 +109,7 @@
         ['keyboard', '菜单也能操作', '模型选择、确认框完整回显。通过 enter、方向键和 backspace 控制，不依赖消息按钮。'],
         ['panels-top-left', '一个 bot，多个终端', '本地和SSH远端统一编号。每条连接独立追加、计时和恢复，退出一个不影响其他。'],
         ['rotate-cw', '重启后仍可接续', '保存输入收据与待投递队列。双方静默 30 分钟才断开，终端任务继续运行。'],
-      ].map(([i, title, text]) => `<div class="feature">${icon(i)}<h3>${title}</h3><p>${text}</p></div>`).join('')}</div><section class="section"><h2>先把接入做好</h2><figure class="preview"><img src="assets/workbench.png" width="1440" height="1000" alt="QQbot-Tmux 接入工作台的实际桌面截图" loading="lazy"><figcaption>实际接入工作台 · 实例命令生成与逐步检查</figcaption></figure></section><section class="section"><h2>轻量，不代表没有边界</h2><p class="muted">不调用大模型，不需要模型 API Key。支持本机文件收发，可选插件查询Sub2API额度，不包含秘书 Agent。转发来自终端屏幕采样，不是程序原生事件流；QQ 主动消息权限仍受平台约束。</p><div class="link-row"><a href="#security">安全边界 ${icon('arrow-right')}</a><a href="#troubleshooting">常见问题 ${icon('arrow-right')}</a></div></section></div>`;
+      ].map(([i, title, text]) => `<div class="feature">${icon(i)}<h3>${title}</h3><p>${text}</p></div>`).join('')}</div><section class="section"><h2>先把接入做好</h2><figure class="preview"><img src="assets/workbench.png" width="1440" height="1000" alt="QQbot-Tmux 接入工作台的实际桌面截图" loading="lazy"><figcaption>实际接入工作台 · 实例命令生成与逐步检查</figcaption></figure></section><section class="section"><h2>轻量，不代表没有边界</h2><p class="muted">不调用大模型，不需要模型 API Key。支持本机文件收发，可选插件查询Sub2API额度。转发来自终端屏幕采样，不是程序原生事件流；QQ 主动消息权限仍受平台约束。</p><div class="link-row"><a href="#security">安全边界 ${icon('arrow-right')}</a><a href="#troubleshooting">常见问题 ${icon('arrow-right')}</a></div></section></div>`;
   }
   const entries = [
     ['全部', '/help', '查看全局功能总览', '终端、文件、额度与群绑定；面板为/tmux ls、/tmux sel、/tmux help'],

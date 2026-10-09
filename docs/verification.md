@@ -12,7 +12,7 @@ docker build --target test -t qq-tmux-relay-test .
 docker run --rm --network none qq-tmux-relay-test
 ```
 
-测试使用独立tmux socket和可销毁会话，不操作现有工作窗格。QQ接入和额度上游使用可控响应，不向真实聊天发消息、不刷新私人账号。
+测试使用独立tmux socket和可销毁会话，不操作现有工作窗格。QQ接入和额度上游使用可控响应，不向真实聊天发消息、不刷新真实Sub2API账号。
 
 | 需求 | 验证要点 |
 | --- | --- |
