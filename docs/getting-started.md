@@ -39,7 +39,7 @@ Docker组本身有很高的宿主权限。不要为了绕过权限错误把bot�
 ## 3. 初始化独立实例
 
 ```bash
-git clone https://github.com/Wan-zone/QQbot-Tmux.git
+git clone https://github.com/wan-6767/QQbot-Tmux-CodeX.git QQbot-Tmux
 cd QQbot-Tmux
 
 # 已有 tmux 会话时不必创建这一项。

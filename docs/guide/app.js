@@ -1,7 +1,7 @@
 (() => {
   'use strict';
   const STORAGE = 'qqbot-tmux-guide-v1';
-  const repo = 'https://github.com/Wan-zone/QQbot-Tmux';
+  const repo = 'https://github.com/wan-6767/QQbot-Tmux-CodeX';
   const views = { setup: '接入工作台', overview: '产品概览', commands: '指令手册', operations: '运行维护', troubleshooting: '故障排查', security: '安全边界' };
   const checks = ['服务器环境就绪', 'QQ bot 已创建', '桥接与接入已启动', '本人绑定并验收'];
   const hints = ['Linux · tmux · Docker Compose', '正式接口可用 · 凭据已填', '查看服务状态与 QQ READY', '列出真实终端 · 收到新增输出'];
@@ -41,7 +41,7 @@
     const unit = `qq-tmux-bridge-${n}.service`;
     return {
       prepare: 'python3 --version\ntmux -V\ndocker version\ndocker compose version',
-      initialize: `git clone https://github.com/Wan-zone/QQbot-Tmux.git\ncd QQbot-Tmux\n\n# 已有 tmux 会话时，跳过下一行。\ntmux new-session -d -s work\npython3 scripts/manage.py init ${n} --port ${p} \\\n  --socket "$(tmux display-message -p '#{socket_path}')"`,
+      initialize: `git clone https://github.com/wan-6767/QQbot-Tmux-CodeX.git QQbot-Tmux\ncd QQbot-Tmux\n\n# 已有 tmux 会话时，跳过下一行。\ntmux new-session -d -s work\npython3 scripts/manage.py init ${n} --port ${p} \\\n  --socket "$(tmux display-message -p '#{socket_path}')"`,
       credentials: `nano instances/${n}/bot.env`,
       launch: `systemctl --user enable --now \\\n  "$PWD/instances/${n}/${unit}"\n${compose} up -d --build`,
       linger: 'sudo loginctl enable-linger "$USER"',

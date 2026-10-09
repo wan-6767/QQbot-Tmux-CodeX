@@ -1,7 +1,7 @@
 # QQbot-Tmux
 
-[![终端回归](https://github.com/Wan-zone/QQbot-Tmux/actions/workflows/tests.yml/badge.svg)](https://github.com/Wan-zone/QQbot-Tmux/actions/workflows/tests.yml)
-[![接入文档检查](https://github.com/Wan-zone/QQbot-Tmux/actions/workflows/site.yml/badge.svg)](https://github.com/Wan-zone/QQbot-Tmux/actions/workflows/site.yml)
+[![终端回归](https://github.com/wan-6767/QQbot-Tmux-CodeX/actions/workflows/tests.yml/badge.svg)](https://github.com/wan-6767/QQbot-Tmux-CodeX/actions/workflows/tests.yml)
+[![接入文档检查](https://github.com/wan-6767/QQbot-Tmux-CodeX/actions/workflows/site.yml/badge.svg)](https://github.com/wan-6767/QQbot-Tmux-CodeX/actions/workflows/site.yml)
 [MIT License](LICENSE) · Linux · QQ 官方接口 · 不需要模型 API Key
 
 **把服务器里正在运行的终端，接进 QQ。**
@@ -27,6 +27,8 @@
 | 升级、备份、回滚，或了解操作权限 | [运行维护](docs/operations.md) · [安全说明](SECURITY.md) |
 
 本文和 `docs/` 就是完整的产品介绍与使用入口，直接在 GitHub 阅读即可，无需另开网站。
+
+[完整文档目录](docs/README.md) · [架构与开发](docs/architecture.md) · [验收清单](docs/verification.md)
 
 ## 一次完整交互
 
@@ -118,7 +120,7 @@ Bot：退出转发，服务器上的任务仍然运行
 在仓库根目录，以运行tmux的**普通用户**执行：
 
 ```bash
-git clone https://github.com/Wan-zone/QQbot-Tmux.git
+git clone https://github.com/wan-6767/QQbot-Tmux-CodeX.git QQbot-Tmux
 cd QQbot-Tmux
 
 # 已有会话时不必创建；这里仅演示一个新工作会话。
