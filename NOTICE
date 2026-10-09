@@ -13,4 +13,4 @@ tmux and Docker are external dependencies and retain their own licenses.
 
 The static product guide bundles Lucide 1.53.0 icons, distributed under the
 ISC license with MIT-licensed Feather-derived icons. The complete notice is
-preserved in site/assets/LUCIDE_LICENSE.
+preserved in docs/guide/assets/LUCIDE_LICENSE.

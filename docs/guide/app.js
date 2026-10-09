@@ -29,7 +29,7 @@
     toast.textContent = message; toast.hidden = false;
     clearTimeout(toastTimer); toastTimer = setTimeout(() => { toast.hidden = true; }, 2800);
   }
-  function heading(title, text, eyebrow = 'QQBOT-TMUX / 0.2.0') {
+  function heading(title, text, eyebrow = 'QQBOT-TMUX / 0.2.1') {
     return `<div class="page-heading"><div class="eyebrow">${eyebrow}</div><h1>${title}</h1><p class="subheading">${text}</p></div>`;
   }
   function codeTool(label, key) {
@@ -37,7 +37,7 @@
   }
   function commands() {
     const n = state.name, p = state.port;
-    const compose = `docker compose --env-file instances/${n}/compose.env -p qq-tmux-${n}`;
+    const compose = `docker compose -f deploy/compose.yaml --env-file instances/${n}/compose.env -p qq-tmux-${n}`;
     const unit = `qq-tmux-bridge-${n}.service`;
     return {
       prepare: 'python3 --version\ntmux -V\ndocker version\ndocker compose version',
@@ -46,7 +46,7 @@
       launch: `systemctl --user enable --now \\\n  "$PWD/instances/${n}/${unit}"\n${compose} up -d --build`,
       linger: 'sudo loginctl enable-linger "$USER"',
       pairing: `python3 scripts/manage.py pairing ${n}`,
-      acceptance: '/tmux ls\n/tmux sel 001 ent\n/tmux sel 001 list100\n/tmux sel 001 ext',
+      acceptance: '/tmux ls\n/tmux sel 001 ent\n/tmux sel 001 tail 100\n/tmux sel 001 ext',
       status: `systemctl --user status ${unit} --no-pager\n${compose} ps\n${compose} logs --tail 50`,
       restart: `${compose} up -d --build`,
       stop: `${compose} stop\nsystemctl --user stop ${unit}`,
@@ -107,12 +107,13 @@
       `<div class="content-width"><p class="lead">不新建 AI 对话，不让模型代按键。选择一个已有窗格，QQ 消息直接送进终端，程序的新增回答再回到聊天。</p><div class="link-row"><a class="button primary" href="#setup">${icon('plug-zap')}开始接入</a>${link('查看源码', repo)}</div><div class="pipeline"><div>${icon('messages-square')}<strong>QQ 私聊 / 群聊</strong><small>官方 bot · 本人绑定</small></div>${icon('arrow-right')}<div>${icon('cable')}<strong>认证本机桥接</strong><small>私有令牌 · 窗格互斥</small></div>${icon('arrow-right')}<div>${icon('terminal')}<strong>原有 tmux 会话</strong><small>现有任务 · 原有权限</small></div></div><div class="feature-grid">${[
         ['text', '回答按段落追加', '进入时返回最近 100 行，之后继续接收新内容。隐藏操作噪音，需要时查看完整快照。'],
         ['keyboard', '菜单也能操作', '模型选择、确认框完整回显。通过 enter、方向键和 backspace 控制，不依赖消息按钮。'],
-        ['panels-top-left', '多个 bot，独立工作', '各自绑定、各自投递。共享窗格锁，避免两个 bot 同时控制同一个终端。'],
+        ['panels-top-left', '一个 bot，多个终端', '本地和SSH远端统一编号。每条连接独立追加、计时和恢复，退出一个不影响其他。'],
         ['rotate-cw', '重启后仍可接续', '保存输入收据与待投递队列。双方静默 30 分钟才断开，终端任务继续运行。'],
-      ].map(([i, title, text]) => `<div class="feature">${icon(i)}<h3>${title}</h3><p>${text}</p></div>`).join('')}</div><section class="section"><h2>先把接入做好</h2><figure class="preview"><img src="assets/workbench.png" width="1440" height="1000" alt="QQbot-Tmux 接入工作台的实际桌面截图" loading="lazy"><figcaption>实际接入工作台 · 实例命令生成与逐步检查</figcaption></figure></section><section class="section"><h2>轻量，不代表没有边界</h2><p class="muted">不调用大模型，不需要模型 API Key。不包含文件中转、额度查询或秘书 Agent。转发来自终端屏幕采样，不是程序原生事件流；QQ 主动消息权限仍受平台约束。</p><div class="link-row"><a href="#security">安全边界 ${icon('arrow-right')}</a><a href="#troubleshooting">常见问题 ${icon('arrow-right')}</a></div></section></div>`;
+      ].map(([i, title, text]) => `<div class="feature">${icon(i)}<h3>${title}</h3><p>${text}</p></div>`).join('')}</div><section class="section"><h2>先把接入做好</h2><figure class="preview"><img src="assets/workbench.png" width="1440" height="1000" alt="QQbot-Tmux 接入工作台的实际桌面截图" loading="lazy"><figcaption>实际接入工作台 · 实例命令生成与逐步检查</figcaption></figure></section><section class="section"><h2>轻量，不代表没有边界</h2><p class="muted">不调用大模型，不需要模型 API Key。支持本机文件收发，可选插件查询Sub2API额度，不包含秘书 Agent。转发来自终端屏幕采样，不是程序原生事件流；QQ 主动消息权限仍受平台约束。</p><div class="link-row"><a href="#security">安全边界 ${icon('arrow-right')}</a><a href="#troubleshooting">常见问题 ${icon('arrow-right')}</a></div></section></div>`;
   }
   const entries = [
-    ['全部', '/help', '查看完整帮助', '输入框面板默认仅注册 /help 和 /tmux ls'],
+    ['全部', '/help', '查看全局功能总览', '终端、文件、额度与群绑定；面板为/tmux ls、/tmux sel、/tmux help'],
+    ['窗格', '/tmux sel', '编号和操作的输入前缀', '补上001 ent或001 消息后再发送'],
     ['全部', '/tmux help', '查看终端操作帮助', '所有公开指令统一使用 /'],
     ['窗格', '/tmux ls', '本地及远端窗格、编号和占用情况', '固定001–999，不随列表排序变化'],
     ['窗格', '/tmux sel 001 ent', '接入或重连这一窗格', '返回100行并持续追加，可同时接入多个'],
@@ -120,14 +121,19 @@
     ['输入', '/tmux sel 001 文字', '输入指定终端，并自动回车', '所有输入都需要三位编号'],
     ['输入', '/tmux sel 001 /model', '向终端输入程序命令', 'bot不调用模型、不代选菜单'],
     ['输入', '/tmux sel 001 type 文字', '只输入，不回车', '可继续输入或单独发送key enter'],
-    ['输入', '/tmux sel 001 send ent', '把保留词作为普通文字输入', 'ent是接入，ext是断开，list100是快照'],
+    ['输入', '/tmux sel 001 send ent', '把保留词作为普通文字输入', 'ent是接入，ext是断开，tail 100是快照'],
     ['按键', '/tmux sel 001 key enter', '回车确认', '一次发送一个按键，不支持重复次数'],
     ['按键', '/tmux sel 001 key up', '向上选择或移动', 'down / left / right 同样可用'],
     ['按键', '/tmux sel 001 key backspace', '删除光标前的字符', 'delete删除光标后的字符'],
     ['按键', '/tmux sel 001 key esc', '取消菜单或返回', '菜单整体回显，不拆成变化的一行'],
     ['按键', '/tmux sel 001 key ctrl-c', '发送中断', '可能停止终端任务，谨慎操作'],
     ['按键', '/tmux sel 001 key tab', '发送Tab', '还支持space / home / end / pgup / pgdn / ctrl-d'],
-    ['屏幕', '/tmux sel 001 list100', '最近100行原始快照', '包含工具日志，仅重置001的追加进度'],
+    ['按键', '/tmux key ctrl+shift+left sel 001', '组合键，操作与目标可互换', 'Ctrl / Alt / Shift，支持字母、符号和F1–F24'],
+    ['屏幕', '/tmux sel 001 tail 100', '最近N行原始快照', 'N可选1–5000，包含工具日志，仅重置001进度'],
+    ['文件', '/file help', '查看文件收发帮助', '下载、全部或指定缓存清理及权限边界'],
+    ['文件', '/file dl /home/alice/project/result.zip', '下载本机普通文件', '最多100 MiB；上传后返回绝对路径，不自动输入终端'],
+    ['文件', '/file rm', '清理本bot登记的上传缓存', '不清空/tmp，不删除项目文件'],
+    ['额度', '/sub2api usage', '刷新本机Sub2API窗口及积分', '可选插件，等宽进度条；管理员密钥仅由宿主读取'],
     ['群聊', '/group bind', '私聊获取一次性群绑定指令', '将完整指令 @bot 发到目标群，10 分钟有效'],
     ['群聊', '/group status', '私聊查看群绑定状态', '不同 AppID 的群成员身份不能互用'],
     ['群聊', '/group unbind', '私聊解除群绑定', '先在原群对所有连接执行/tmux sel 编号 ext'],
@@ -166,12 +172,12 @@
     const items = [
       ['bot 没有回复 /bind 或 /tmux ls', '先查看 QQ 接入日志是否出现 READY。确认正式环境资格、AppID/AppSecret、服务器出站网络和控制台 IP 白名单；未绑定时应先在服务器获取 /bind 指令。不要并行启动同一 AppID 的第二个接入进程。'],
       ['机器人能添加，为什么进不了目标群？', 'QQ 平台的入群范围、审核及管理员条件，与本项目的本人权限不是一回事。以开放平台控制台为准，服务器代码不能绕过平台限制。平台添加完成后，仍需私聊 /group bind 建立群成员身份。'],
-      ['群里进入成功，但新输出没有继续发送', '被动回复窗口和次数耗尽后，需要平台允许主动群消息。被拒绝的内容保留队列、退避重试。重新 @bot 可提供新被动窗口；用 /tmux sel 编号 list100 查看即时原始屏幕，不要误以为任务已停止。'],
+      ['群里进入成功，但新输出没有继续发送', '被动回复窗口和次数耗尽后，需要平台允许主动群消息。被拒绝的内容保留队列、退避重试。重新 @bot 可提供新被动窗口；用 /tmux sel 编号 tail 100 查看即时原始屏幕，不要误以为任务已停止。'],
       ['连接不到 tmux，或列表里没有窗格', '桥接用户必须与 tmux 用户一致。检查生成的 service 中 --socket 路径确实对应已有 socket，服务和 Compose 实例名称、端口、令牌必须配套。不要改成 root 或将端口开放到公网。'],
       ['显示窗格被其他 bot 占用', '互斥正在生效。先在原 bot /tmux sel 编号 ext，再用目标 bot 连接；也可以选择不同窗格。双方静默 30 分钟会自动释放，停止原桥接进程也会释放内核锁。'],
-      ['输出清洗不准确，或内容重复、遗漏', '这是终端屏幕采样，不是程序原生事件流。快速重复输出和未知 TUI 可能不易区分。先用 /tmux sel 编号 list100 核对，注意该命令会重置自动追加基线；提交经过脱敏的可复现片段，不上传真实终端历史。'],
-      ['手机输入 / 没有快捷命令提示', '面板需要平台能力及客户端同步。默认只注册 /help 和 /tmux ls，注册失败不影响手动发送。群聊仍需 @bot，菜单按键使用 /tmux sel 编号 key 指令。'],
-      ['发送超时，是否应该重新发送？', '先查看 /tmux sel 编号 list100，确认终端是否已收到输入。桥接有输入收据查询，但如果最终状态仍未知，重复提交可能造成重复执行。不要为了测试把破坏性命令反复发送。'],
+      ['输出清洗不准确，或内容重复、遗漏', '这是终端屏幕采样，不是程序原生事件流。快速重复输出和未知 TUI 可能不易区分。先用 /tmux sel 编号 tail 100 核对，注意该命令会重置自动追加基线；提交经过脱敏的可复现片段，不上传真实终端历史。'],
+      ['手机输入 / 没有快捷命令提示', '面板需要平台能力及客户端同步。默认注册 /tmux ls、/tmux sel 和 /tmux help，注册失败不影响手动发送。群聊仍需 @bot，菜单按键使用 /tmux sel 编号 key 指令。'],
+      ['发送超时，是否应该重新发送？', '先查看 /tmux sel 编号 tail 100，确认终端是否已收到输入。桥接有输入收据查询，但如果最终状态仍未知，重复提交可能造成重复执行。不要为了测试把破坏性命令反复发送。'],
       ['Docker 或用户 systemd 提示权限不足', '按 Docker 官方文档配置普通用户权限；Docker 组本身具有高宿主权限。退出 SSH 后要常驻，可由管理员启用该用户 linger。不要 sudo 初始化，也不要将所有数据改成 777。'],
     ];
     main.innerHTML = heading('故障排查', '从真实故障点检查，不用重建绑定或盲目重启所有服务。') +

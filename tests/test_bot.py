@@ -151,12 +151,12 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(ingest.call_args.args[0]["content"], expected)
                 self.assertEqual(ingest.call_args.kwargs["qq_chat_type"], "group")
 
-    async def test_terminal_rejects_owner_upload_before_download(self):
+    async def test_authorized_private_and_group_uploads_reach_intake_not_terminal(self):
         adapter = app.TerminalAdapter(PlatformConfig())
         adapter.send = AsyncMock()
         owner.write_private(owner.home() / "group.json", {
             "owner_openid": "owner", "group_openid": "test-group", "member_openid": "test-member"})
-        with patch.object(adapter, "_process_attachments", AsyncMock()) as download, \
+        with patch.object(adapter, "_ingest", AsyncMock()) as ingest, \
                 patch.object(app.terminal_relay, "handle") as handle:
             await adapter._on_message("GROUP_AT_MESSAGE_CREATE", {
                 "id": "owner-upload", "group_openid": "test-group",
@@ -165,10 +165,10 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
             await adapter._on_message("C2C_MESSAGE_CREATE", {
                 "id": "private-upload", "author": {"user_openid": "owner"},
                 "attachments": [{"url": "https://example.org/sample.zip"}]})
-        download.assert_not_awaited()
+        self.assertEqual(ingest.await_count, 2)
+        self.assertEqual(ingest.call_args.kwargs["chat_id"], "owner")
         handle.assert_not_called()
-        self.assertEqual(adapter.send.await_count, 2)
-        self.assertIn("仅接收文字", adapter.send.call_args.args[1])
+        adapter.send.assert_not_awaited()
 
     async def test_download_and_clear_do_not_reach_terminal(self):
         with patch.object(app.terminal_relay, "handle") as handle:
@@ -403,7 +403,7 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
             "id": "help-in-group", "group_openid": "test-group",
             "author": {"member_openid": "test-member"}, "content": "/tmux help"})
         text = adapter.send.call_args.args[1]
-        for command in ("ent", "key enter", "key up", "type 文字", "send ent", "list100", "ext"):
+        for command in ("ent", "key enter", "key up", "type 文字", "send ent", "tail 100", "ext"):
             self.assertIn("/tmux sel 001 " + command, text)
         self.assertIn("/tmux ls", text)
         self.assertNotIn("/tmux select", text)

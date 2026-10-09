@@ -18,7 +18,8 @@ USER root
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends tmux && rm -rf /var/lib/apt/lists/*
 COPY tests /opt/qq-tmux/tests
 COPY scripts /opt/qq-tmux/scripts
-COPY README.md LICENSE NOTICE SECURITY.md pyproject.toml compose.yaml .env.example /opt/qq-tmux/
+COPY README.md LICENSE NOTICE SECURITY.md pyproject.toml /opt/qq-tmux/
+COPY deploy /opt/qq-tmux/deploy
 ENV HOME=/tmp XDG_CONFIG_HOME=/tmp/.config
 USER 1000:1000
 ENTRYPOINT ["/opt/hermes/.venv/bin/python", "-B", "-m", "unittest", "discover", "-s", "tests", "-v"]

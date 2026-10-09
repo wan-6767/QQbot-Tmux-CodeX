@@ -102,10 +102,10 @@ try {
   await navigate(page, 'commands');
   await page.locator('[data-category=屏幕]').click();
   check(await page.locator('.command-row').count() === 1, 'Category filter');
-  await page.locator('#command-search').fill('list100');
+  await page.locator('#command-search').fill('tail 100');
   check(await page.locator('.command-row').count() === 1, 'Search combined with category');
   await page.locator('.command-row button').click();
-  check(await page.evaluate(() => navigator.clipboard.readText()) === '/tmux sel 001 list100', 'Command copy');
+  check(await page.evaluate(() => navigator.clipboard.readText()) === '/tmux sel 001 tail 100', 'Command copy');
   await page.locator('#command-search').fill('nonexistent-command');
   check(await page.locator('.empty-state').count() === 1, 'Empty search state');
   await navigate(page, 'troubleshooting');

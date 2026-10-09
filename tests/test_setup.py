@@ -119,8 +119,8 @@ class ReleaseTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             subprocess.run(["git", "init", "-q"], cwd=root, check=True)
-            for name in ("backups/private.txt", "site/node_modules/package/index.js",
-                         "site/test-results/screenshot.png", "site/playwright-report/index.html"):
+            for name in ("backups/private.txt", "docs/guide/node_modules/package/index.js",
+                         "docs/guide/test-results/screenshot.png", "docs/guide/playwright-report/index.html"):
                 path = root / name
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text("fixture")

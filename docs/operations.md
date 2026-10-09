@@ -9,11 +9,11 @@
 ## 状态和停止
 
 ```bash
-docker compose --env-file instances/default/compose.env -p qq-tmux-default ps
+docker compose -f deploy/compose.yaml --env-file instances/default/compose.env -p qq-tmux-default ps
 systemctl --user status qq-tmux-bridge-default.service --no-pager
 
 # 停止QQ入口和桥接，但不关闭tmux任务。
-docker compose --env-file instances/default/compose.env -p qq-tmux-default stop
+docker compose -f deploy/compose.yaml --env-file instances/default/compose.env -p qq-tmux-default stop
 systemctl --user stop qq-tmux-bridge-default.service
 ```
 
@@ -30,8 +30,8 @@ tar -czf backups/default-before-upgrade.tar.gz instances/default
 
 git fetch --tags
 # 审查对应版本后再切换，不覆盖自己未提交的改动。
-git switch --detach v0.2.0
-docker compose --env-file instances/default/compose.env -p qq-tmux-default up -d --build
+git switch --detach v0.2.1
+docker compose -f deploy/compose.yaml --env-file instances/default/compose.env -p qq-tmux-default up -d --build
 systemctl --user start qq-tmux-bridge-default.service
 ```
 
@@ -49,18 +49,18 @@ systemctl --user start qq-tmux-bridge-default.service
 
 产品介绍与接入教程统一在 GitHub 的 [README](../README.md) 和 `docs/` 阅读，不需要部署独立网站。
 
-`site/index.html` 是可选的离线接入助手，可以直接用浏览器打开，无需bot服务、大模型、Node.js 或网页服务器。它只保存实例名、端口和手动勾选的接入进度，不请求AppSecret、不连接终端、不做自动安装、不收集遥测。
+`docs/guide/index.html` 是可选的离线接入助手，可以直接用浏览器打开，无需bot服务、大模型、Node.js 或网页服务器。它只保存实例名、端口和手动勾选的接入进度，不请求AppSecret、不连接终端、不做自动安装、不收集遥测。
 
 仅开发和测试此助手时需要 Node.js：
 
 ```bash
-npm --prefix site ci
-./site/node_modules/.bin/playwright install chromium
-npm --prefix site test
-npm --prefix site run build
+npm --prefix docs/guide ci
+./docs/guide/node_modules/.bin/playwright install chromium
+npm --prefix docs/guide test
+npm --prefix docs/guide run build
 ```
 
-构建只导出离线资源到 `dist/site/`，不复制任何 `instances/` 或服务器配置。`Guide Checks` 工作流仅执行浏览器回归、构建并保存离线 artifact，没有 Pages 部署任务或网站发布权限。
+构建只导出离线资源到 `dist/guide/`，不复制任何 `instances/` 或服务器配置。`Guide Checks` 工作流仅执行浏览器回归、构建并保存离线 artifact，没有 Pages 部署任务或网站发布权限。
 
 ## 发布检查
 

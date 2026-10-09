@@ -154,9 +154,6 @@ class TerminalAdapter(QQAdapter):
             return
         if user != owner.owner_id():
             return
-        if self._has_file_attachments(data):
-            await self.send(user, "终端机器人仅接收文字，不下载图片、语音或文件。", reply_to=message_id)
-            return
         await super()._handle_c2c_message(data, message_id, content, author, timestamp)
 
     def _is_group_allowed(self, group, member=""):
@@ -194,9 +191,6 @@ class TerminalAdapter(QQAdapter):
                     qq_commands.terminal_command(text).strip().startswith("#tmux"))
         self.group_replies.note(group, message_id, self._parse_qq_timestamp(timestamp).timestamp())
         self._chat_type_map[group] = "group"
-        if self._has_file_attachments(data):
-            await self.send(group, "终端机器人仅接收文字，不下载图片、语音或文件。", reply_to=message_id)
-            return
         # Keep raw content normalized too: relay intentionally reads it for literal input.
         normalized = {**data, "content": text}
         await self._ingest(normalized, message_id, text, data.get("attachments"), timestamp,
@@ -239,7 +233,7 @@ class TerminalAdapter(QQAdapter):
                         try:
                             await self._send_c2c_text(owner.owner_id(), "## 群消息受限\n\n" + bot_name()
                                 + "的主动群消息被 QQ 拒绝。\n请在 QQ 群机器人权限中允许主动发言；有权限后待发内容会自动重试。\n"
-                                  "普通 @回复已兼容；也可发送 /tmux sel 编号 list100 查看。")
+                                  "普通 @回复已兼容；也可发送 /tmux sel 编号 tail 100 查看。")
                         except Exception:
                             logger.warning("Group delivery warning could not reach private owner")
                 raise
@@ -254,6 +248,14 @@ class TerminalAdapter(QQAdapter):
 
     async def _stt_voice_attachment(self, *args, **kwargs):
         return None
+
+    async def _process_attachments(self, attachments):
+        # Treat voice as a file rather than invoking transcription or a model.
+        normalized = [{**item, "content_type": "application/octet-stream",
+                       "filename": "qq-voice.bin"} if self._is_voice_content_type(
+                           str(item.get("content_type", "")), str(item.get("filename", ""))) else item
+                      for item in attachments if isinstance(item, dict)] if isinstance(attachments, list) else []
+        return await super()._process_attachments(normalized)
 
     async def send(self, chat_id, content, **kwargs):
         result = await super().send(chat_id, service_message(content), **kwargs)
@@ -280,7 +282,7 @@ class TerminalAdapter(QQAdapter):
     async def sync_panel(self):
         # Reuse audited owner-scoped panel API; this app gets no planning/agent commands.
         qq_commands.PANEL_REMARK = "qq-tmuxbot-shortcuts-v1"
-        qq_commands.PANEL_COMMANDS = ("/help", "/tmux ls")
+        qq_commands.PANEL_COMMANDS = ("/tmux ls", "/tmux sel", "/tmux help")
         qq_commands.COMMANDS = tuple((name, "查看终端帮助" if name == "/help" else description, target)
                                     for name, description, target in qq_commands.COMMANDS)
         async def api(method, path, *, body=None, params=None):
@@ -292,7 +294,8 @@ class TerminalAdapter(QQAdapter):
                 raise qq_commands.PanelAPIError(response.status_code)
             return data
         try:
-            result = await qq_commands.sync_panel(api, owner.owner_id(), owner.home() / "qq-command-panel", apply=True)
+            result = await qq_commands.sync_panel(api, owner.owner_id(), owner.home() / "qq-command-panel",
+                                                 apply=True, commands=qq_commands.PANEL_COMMANDS)
             logger.info("Command panel verified: %s", result["action"])
         except Exception as exc:
             logger.warning("Command panel sync failed (%s); manual commands remain usable", type(exc).__name__)

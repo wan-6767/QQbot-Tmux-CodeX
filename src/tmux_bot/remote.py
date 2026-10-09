@@ -13,13 +13,13 @@ import shlex
 import stat
 import subprocess
 
-from .bridge import KEYS, RelayError, Tmux
+from .bridge import KEYS, KEY_NAMES, RelayError, Tmux, normalize_key
 
 
 def worker_source():
     # The remote uses the exact tested Tmux class; prompts travel only as JSON stdin.
     return ("import json,os,re,subprocess,sys,time\nfrom pathlib import Path\n"
-            "class RelayError(Exception): pass\nKEYS=" + repr(KEYS) + "\n" + inspect.getsource(Tmux) +
+            "class RelayError(Exception): pass\nKEYS=" + repr(KEYS) + "\nKEY_NAMES=" + repr(KEY_NAMES) + "\n" + inspect.getsource(normalize_key) + "\n" + inspect.getsource(Tmux) +
             "\np=json.load(sys.stdin)\n"
             "try:\n"
             " if p['method'] not in ('panes','capture','viewport','send','key'): raise ValueError('invalid operation')\n"
@@ -38,8 +38,15 @@ class RemoteTmux:
         if control_dir.is_symlink() or control_dir.stat().st_uid != os.getuid() or stat.S_IMODE(control_dir.stat().st_mode) != 0o700:
             raise ValueError("unsafe SSH control directory")
         socket = str(control_dir / ("cm-" + hashlib.sha256(signature.encode()).hexdigest()[:12]))
-        if len(socket.encode()) > 100:
-            raise ValueError("SSH control path too long; use a shorter instance directory")
+        # OpenSSH appends a random suffix when atomically creating the socket.
+        # Long installation paths need a private, instance-isolated short path.
+        if len(socket.encode()) > 85:
+            short = Path("/tmp") / ("qq-tmux-ssh-" + str(os.getuid()))
+            for directory in (short, short / hashlib.sha256(str(control_dir.resolve()).encode()).hexdigest()[:12]):
+                directory.mkdir(exist_ok=True, mode=0o700)
+                if directory.is_symlink() or directory.stat().st_uid != os.getuid() or stat.S_IMODE(directory.stat().st_mode) != 0o700:
+                    raise ValueError("unsafe SSH control directory")
+            socket = str(directory / ("cm-" + hashlib.sha256(signature.encode()).hexdigest()[:12]))
         self.command = ["ssh", "-F", "/dev/null", "-T", "-p", str(settings["port"]),
             "-i", settings["identity_file"], "-o", "BatchMode=yes", "-o", "IdentitiesOnly=yes",
             "-o", "StrictHostKeyChecking=yes", "-o", "UserKnownHostsFile=" + settings["known_hosts_file"],
@@ -59,7 +66,7 @@ class RemoteTmux:
                 raise RelayError(data["error"])
             return data["result"]
         except (subprocess.TimeoutExpired, OSError, ValueError, KeyError) as exc:
-            raise RelayError("SSH响应超时或格式无效；输入状态请先用 list100 核对，不要重复提交。") from exc
+            raise RelayError("SSH响应超时或格式无效；输入状态请先用 /tmux sel 编号 tail 100 核对，不要重复提交。") from exc
 
     def panes(self):
         return self.rpc("panes")

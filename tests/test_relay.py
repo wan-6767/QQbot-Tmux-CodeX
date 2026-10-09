@@ -17,9 +17,7 @@ import urllib.request
 from unittest.mock import patch
 
 MODULE = Path(__file__).resolve().parents[1] / "src/tmux_bot/bridge.py"
-spec = importlib.util.spec_from_file_location("tmux_relay", MODULE)
-relay_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(relay_module)
+from tmux_bot import bridge as relay_module
 from tmux_bot import terminal_relay
 
 MENU = """  Select Model and Effort

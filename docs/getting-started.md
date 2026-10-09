@@ -1,6 +1,6 @@
 # 从零接入 QQbot-Tmux
 
-本页就是完整接入教程，直接在 GitHub 阅读并依次操作即可。所有命令都在运行 tmux 的 Linux 服务器上以普通用户执行，除非明确标注 `sudo`。下载仓库后，也可以用浏览器打开 `site/index.html` 作为可选离线助手，生成自己的部署命令。
+本页就是完整接入教程，直接在 GitHub 阅读并依次操作即可。所有命令都在运行 tmux 的 Linux 服务器上以普通用户执行，除非明确标注 `sudo`。下载仓库后，也可以用浏览器打开 `docs/guide/index.html` 作为可选离线助手，生成自己的部署命令。
 
 ## 先确认适合你
 
@@ -64,7 +64,7 @@ QQ_CLIENT_SECRET=你的AppSecret
 ```bash
 systemctl --user enable --now \
   "$PWD/instances/default/qq-tmux-bridge-default.service"
-docker compose --env-file instances/default/compose.env \
+docker compose -f deploy/compose.yaml --env-file instances/default/compose.env \
   -p qq-tmux-default up -d --build
 ```
 
@@ -78,8 +78,8 @@ sudo loginctl enable-linger "$USER"
 
 ```bash
 systemctl --user status qq-tmux-bridge-default.service --no-pager
-docker compose --env-file instances/default/compose.env -p qq-tmux-default ps
-docker compose --env-file instances/default/compose.env -p qq-tmux-default logs --tail 50
+docker compose -f deploy/compose.yaml --env-file instances/default/compose.env -p qq-tmux-default ps
+docker compose -f deploy/compose.yaml --env-file instances/default/compose.env -p qq-tmux-default logs --tail 50
 ```
 
 不得将18010映射到公网或反向代理。端口只用于容器与宿主的认证通信。Docker健康检查通过只说明接入活着，下一步仍要在QQ实际绑定并列出终端。
@@ -97,7 +97,7 @@ python3 scripts/manage.py pairing default
 ```text
 /tmux ls
 /tmux sel 001 ent
-/tmux sel 001 list100
+/tmux sel 001 tail 100
 /tmux sel 001 ext
 ```
 
@@ -118,7 +118,7 @@ python3 scripts/manage.py init second --port 18011 \
   --socket "$(tmux display-message -p '#{socket_path}')"
 nano instances/second/bot.env
 systemctl --user enable --now "$PWD/instances/second/qq-tmux-bridge-second.service"
-docker compose --env-file instances/second/compose.env -p qq-tmux-second up -d --build
+docker compose -f deploy/compose.yaml --env-file instances/second/compose.env -p qq-tmux-second up -d --build
 python3 scripts/manage.py pairing second
 ```
 

@@ -12,11 +12,25 @@ import tempfile
 from gateway.config import Platform
 from gateway.session import SessionSource
 
-from . import owner, terminal_relay as text
-from .multiplex import HELP, parse
+from . import owner, terminal_relay as text, terminal_files
+from .multiplex import HELP as TMUX_HELP, parse
 from .bridge import RelayError
+from .sub2api.command import UsageCommand
 
 logger = logging.getLogger("qq_tmuxbot.multi")
+
+HELP = """## QQbot-Tmux
+
+**终端** · `/tmux ls` 查看编号，`/tmux help` 查看操作。
+接入：`/tmux sel 001 ent`；发送：`/tmux sel 001 文字`；退出：`/tmux sel 001 ext`。
+
+**文件** · 上传后返回绝对路径，`/file help` 查看详情。
+下载：`/file dl /绝对路径`；清理上传缓存：`/file rm`。
+
+**额度** · `/sub2api usage` 刷新本机账号额度及积分（可选插件）。
+
+**群绑定** · 私聊 `/group bind`、`/group status`、`/group unbind`。
+仅绑定本人可操作；群内需@本bot，回复全群可见。"""
 
 
 class Channel:
@@ -355,6 +369,7 @@ class MultiGateway:
         self.channels = {}
         self.send_lock = asyncio.Lock()
         self.start_task = None
+        self.usage_command = UsageCommand(lambda event: self._is_user_authorized_for_source(event.source))
 
     def _is_user_authorized_for_source(self, source):
         if source.platform != Platform.QQBOT:
@@ -430,6 +445,9 @@ class MultiGateway:
             channel.checkpoint()
 
     async def stop(self):
+        if self.usage_command.task and not self.usage_command.task.done():
+            self.usage_command.task.cancel()
+            await asyncio.gather(self.usage_command.task, return_exceptions=True)
         if self.start_task and not self.start_task.done():
             self.start_task.cancel()
             await asyncio.gather(self.start_task, return_exceptions=True)
@@ -448,6 +466,61 @@ class MultiGateway:
         raw = event.raw_message if isinstance(event.raw_message, dict) else {}
         value = str(raw.get("content", event.text) or "").strip()
         reply_to = str(event.message_id or "")
+        if value.lower() == "/sub2api usage":
+            await self.usage_command.handle(event, self.adapter)
+            return
+        attachments = (getattr(event, "metadata", None) or {}).get("qqbot_cached_attachments")
+        if attachments:
+            try:
+                def validate(relative, device, inode):
+                    return text.request("/v2/files/validate", {"relative": relative, "device": device, "inode": inode})["path"]
+                message = await asyncio.to_thread(terminal_files.receipt, event, text.root(), validate)
+            except Exception:
+                message = "文件接收失败：缓存与宿主映射未通过核验，请重发。"
+            await self.send(source, message, reply_to=reply_to)
+            return
+        if value.lower() == "/help":
+            await self.send(source, HELP, reply_to=reply_to)
+            return
+        file_command = re.fullmatch(r"/file(?:\s+(dl|rm|help)(?:\s+([\s\S]+))?)?", value, re.I)
+        if (value.split(maxsplit=1) or [""])[0].lower() == "/file" and not file_command:
+            await self.send(source, "文件指令：/file dl 绝对路径；/file rm 清理上传缓存；/file help 查看帮助。", reply_to=reply_to)
+            return
+        if file_command and (not file_command[1] or file_command[1].lower() == "dl" and not file_command[2]):
+            await self.send(source, terminal_files.HELP, reply_to=reply_to)
+            return
+        if file_command and file_command[1].lower() == "help":
+            await self.send(source, terminal_files.HELP, reply_to=reply_to)
+            return
+        if value.lower() == "/files clear" or (file_command and file_command[1].lower() == "rm"):
+            try:
+                message = await asyncio.to_thread(terminal_files.clear, text.root(), file_command[2] if file_command else None)
+            except Exception:
+                message = "缓存清理失败，未删除其他文件。"
+            await self.send(source, message, reply_to=reply_to)
+            return
+        if (value.split(maxsplit=1) or [""])[0].lower() == "/download" or (file_command and file_command[1].lower() == "dl"):
+            payload = None
+            try:
+                argument = (file_command[2] or "").strip() if file_command else value.partition(" ")[2].strip()
+                payload = await self.request("/v2/files/prepare", {"path": argument})
+                if payload.get("error"):
+                    raise RelayError(payload["message"])
+                if not self.authorized(source):
+                    return
+                result = await self.adapter.send_document(source["chat_id"], str(owner.home() / payload["relative"]),
+                                                         file_name=payload["name"], reply_to=reply_to)
+                if not getattr(result, "success", False):
+                    raise RelayError(str(getattr(result, "error", "QQ拒绝发送文件")))
+            except Exception as exc:
+                await self.send(source, "下载失败：" + str(exc)[:300], reply_to=reply_to)
+            finally:
+                if payload and payload.get("token"):
+                    try:
+                        await self.request("/v2/files/release", {"token": payload["token"]})
+                    except Exception:
+                        logger.warning("Outgoing file snapshot cleanup deferred")
+            return
         if value.lower() in {"/group bind", "/group status", "/group unbind"} and source["chat_type"] == "dm":
             if value.lower() == "/group status":
                 message = "群聊已绑定，只接受你的 @消息。" if owner.group_binding() else "尚未绑定群聊。私聊 /group bind。"
@@ -461,8 +534,8 @@ class MultiGateway:
                 message = "## 群聊绑定\n\n在目标群 @本 bot，发送：\n`" + command + "`\n\n10分钟有效；终端输出全群可见。"
             await self.send(source, message, reply_to=reply_to)
             return
-        if value.lower() in {"/help", "/tmux help", "/tmux"}:
-            await self.send(source, HELP, reply_to=reply_to)
+        if value.lower() in {"/tmux help", "/tmux"}:
+            await self.send(source, TMUX_HELP, reply_to=reply_to)
             return
         try:
             verb, number, argument = parse(value)
@@ -484,7 +557,7 @@ class MultiGateway:
             if receipt.get("status") == "complete":
                 result = receipt["result"]
             else:
-                await self.send(source, f"{number or '终端'}提交状态不明，未重复发送。请 /tmux sel 编号 list100 核对。", reply_to=reply_to)
+                await self.send(source, f"{number or '终端'}提交状态不明，未重复发送。请 /tmux sel 编号 tail 100 核对。", reply_to=reply_to)
                 return
         if result.get("duplicate"):
             return

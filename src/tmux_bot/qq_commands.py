@@ -14,14 +14,15 @@ from urllib.parse import quote
 
 PANEL_REMARK = "qq-tmuxbot-shortcuts-v1"
 COMMANDS = (
-    ("/tmux ls", "列出终端并选择进入", "#tmux ls"),
+    ("/tmux ls", "查看本地和远端终端编号", "#tmux ls"),
+    ("/tmux sel", "指定编号，再填ent、ext或消息", "#tmux sel"),
     ("/tmux list100", "查看最近100行完整上下文", "#tmux list100"),
     ("/tmux exit", "退出终端选择模式", "#tmux exit"),
     ("/tmux help", "查看终端操作帮助", "#tmux help"),
     ("/help", "查看终端机器人帮助", "/help"),
 )
 ALIASES = {name: target for name, _description, target in COMMANDS}
-PANEL_COMMANDS = ("/help", "/tmux ls")
+PANEL_COMMANDS = ("/tmux ls", "/tmux sel", "/tmux help")
 LEGACY_ALIASES = {"/tmux": "#tmux ls", "/list100": "#tmux list100", "/exit": "#tmux exit"}
 
 

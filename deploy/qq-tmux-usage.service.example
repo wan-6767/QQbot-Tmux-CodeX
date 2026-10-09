@@ -1,0 +1,16 @@
+[Unit]
+Description=QQ tmux optional Sub2API quota reader
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/QQbot-Tmux
+Environment=PYTHONPATH=%h/QQbot-Tmux/src
+ExecStart=/usr/bin/python3 -B -m tmux_bot.sub2api.service --config %h/QQbot-Tmux/instances/default/host-services/sub2api/config.json --token-file %h/QQbot-Tmux/instances/default/data/sub2api-usage/token
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+UMask=0077
+
+[Install]
+WantedBy=default.target

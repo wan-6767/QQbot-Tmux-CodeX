@@ -13,21 +13,21 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: site/package-lock.json
+          cache-dependency-path: docs/guide/package-lock.json
       - run: npm ci
-        working-directory: site
+        working-directory: docs/guide
       - run: npx playwright install --with-deps chromium
-        working-directory: site
+        working-directory: docs/guide
       - run: npm test
-        working-directory: site
+        working-directory: docs/guide
       - run: npm run build
-        working-directory: site
+        working-directory: docs/guide
       - uses: actions/upload-artifact@v4
         with:
           name: offline-guide
-          path: dist/site
+          path: dist/guide
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: browser-screenshots
-          path: site/test-results
+          path: docs/guide/test-results

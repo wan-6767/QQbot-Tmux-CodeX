@@ -11,6 +11,7 @@ import sqlite3
 import threading
 
 from .bridge import Relay, RelayError
+from . import files
 
 HELP = """## 多终端转发
 
@@ -25,10 +26,13 @@ HELP = """## 多终端转发
 | `/tmux sel 001 key up` | 上方向键 |
 | `/tmux sel 001 type 文字` | 只输入，不回车 |
 | `/tmux sel 001 send ent` | 原样发送保留词 ent |
-| `/tmux sel 001 list100` | 最近100行原始快照，重置这一连接的追加进度 |
+| `/tmux sel 001 tail 100` | 最近N行原始快照，重置这一连接的追加进度 |
 | `/tmux sel 001 ext` | 仅断开这一连接，任务继续运行 |
 
-按键：enter、esc、up、down、left、right、tab、space、backspace、delete、home、end、pgup、pgdn、ctrl-c、ctrl-d。
+目标与操作可以互换：`/tmux tail 100 sel 001`、`/tmux ent sel 001`、`/tmux key up sel 001`。
+tail行数1–5000；不足时返回已有内容。tail100也可识别，旧list100已移除。
+按键：enter、esc、方向键、tab、space、backspace、delete、insert、home、end、pageup、pagedown、F1–F24、字母/数字/符号。
+组合键：ctrl、alt、shift，可用+或-连接，例如ctrl+c、shift+tab、alt+enter、ctrl+shift+left。
 ctrl-c 可能中断任务；ent 是接入，不是回车。
 
 编号001–999固定对应实际窗格，不是当前列表排序。窗格关闭后旧编号失效，不会自动指向另一个终端。
@@ -36,7 +40,11 @@ ctrl-c 可能中断任务；ent 是接入，不是回车。
 所有输入都要带编号；不再使用旧版 select/exit 或无编号输入。
 群里每条指令都需 @本 bot，只有绑定本人可操作，输出全群可见。
 私聊 /group bind、/group status、/group unbind 管理群绑定。
-只转发文字终端，不调用模型，不提供文件中转或额度查询。"""
+文件/图片/语音上传后返回本机绝对路径，不自动输入终端。
+`/file dl /绝对路径` 下载本机普通文件（最多100 MiB）；`/file rm` 只清理本bot接收的缓存。
+路径仅属于本机，远端需自行scp；群收发仍要求绑定本人的@消息。
+`/sub2api usage` 刷新并查看本机账号额度及积分（可选插件）。
+不调用模型，不提供Hermes秘书功能。"""
 
 
 def parse(text):
@@ -45,15 +53,37 @@ def parse(text):
         return "help", "", ""
     if value.lower() == "/tmux ls":
         return "list", "", ""
+    guidance = "格式：/tmux sel 001 ent｜文字｜key enter｜tail 100｜ext；也可 /tmux tail 100 sel 001。"
     match = re.fullmatch(r"/tmux\s+sel\s+([0-9]{3})\s+([\s\S]+)", value, re.I)
-    if not match or match[1] == "000":
-        raise RelayError("格式：/tmux sel 001 ent｜文字｜key enter｜list100｜ext；/tmux ls 查看编号。")
-    channel, body = match[1], match[2]
-    if body.lower() in {"ent", "ext", "list100"}:
+    if match:
+        channel, body = match[1], match[2].strip()
+    else:
+        match = re.fullmatch(r"/tmux\s+([\s\S]+?)\s+sel\s+([0-9]{3})", value, re.I)
+        if not match:
+            raise RelayError(guidance)
+        body, channel = match[1].strip(), match[2]
+        # Only explicit operations can precede the target. Never search arbitrary
+        # prose for target tokens or silently switch the destination of a prompt.
+        if not re.match(r"(?:ent|ext|key|type|send|tail\d*|list100)(?:\s|$)", body, re.I):
+            raise RelayError(guidance)
+    if channel == "000":
+        raise RelayError(guidance)
+    if body.lower() in {"ent", "ext"}:
         return body.lower(), channel, ""
+    if re.match(r"list100(?:\s|$)", body, re.I):
+        raise RelayError("list100已移除，请用 /tmux sel " + channel + " tail 100；行数可自定。")
+    if re.match(r"tail(?:\s|\d|$)", body, re.I):
+        tail = re.fullmatch(r"tail\s*([0-9]{1,4})", body, re.I)
+        if not tail or not 1 <= int(tail[1]) <= 5000:
+            raise RelayError("格式：/tmux sel " + channel + " tail N，N为1–5000的行数。")
+        return "tail", channel, str(int(tail[1]))
     operation = re.match(r"(key|type|send)\s+([\s\S]*)", body, re.I)
     if operation:
+        if not operation[2]:
+            raise RelayError(guidance)
         return operation[1].lower(), channel, operation[2]
+    if re.match(r"(?:ent|ext|key|type|send)(?:\s|$)", body, re.I):
+        raise RelayError(guidance + " 保留词作为文字请加send。")
     return "send", channel, body
 
 
@@ -200,7 +230,8 @@ class MultiRelay:
         if len(lines) == 2:
             lines.append("没有运行中的 tmux 窗格。")
         for host, error in getattr(self.tmux, "errors", {}).items():
-            lines.extend(["", "### " + safe_name(host), safe_name(error)])
+            lines.extend(["", "### " + safe_name(host) + " · 连接异常", safe_name(error),
+                          "原编号保留；本地及其他服务器仍可操作。"])
         lines.extend(["", "`/tmux sel 001 ent` 接入；`/tmux help` 查看指令。"])
         return {"handled": True, "message": "\n".join(lines), "protocol": 2}
 
@@ -238,7 +269,7 @@ class MultiRelay:
                 if saved["status"] == "complete":
                     return {**saved["result"], "duplicate": True}
                 if saved["status"] != "missing":
-                    return {"handled": True, "uncertain": True, "message": "上次输入状态不明，未重复发送。请用 /tmux sel 编号 list100 核对。"}
+                    return {"handled": True, "uncertain": True, "message": "上次输入状态不明，未重复发送。请用 /tmux sel 编号 tail 100 核对。"}
             try:
                 verb, channel, body = parse(text)
                 if key:
@@ -270,7 +301,7 @@ class MultiRelay:
                     else:
                         if not child.selected or bound != source:
                             raise RelayError(f"尚未连接，请先 /tmux sel {channel} ent。")
-                        command = "#tmux " + {"list100": "list100", "send": "send", "type": "type", "key": "key"}[verb]
+                        command = "#tmux " + {"tail": "tail", "send": "send", "type": "type", "key": "key"}[verb]
                         if body:
                             command += " " + body
                         result = child.route(command, key)
@@ -324,6 +355,8 @@ class MultiRelay:
             return self.state()
         if path == "/v2/receipt":
             return self.receipt(self.receipt_key(self.source(body["source"]), body["message_id"]))
+        if path.startswith("/v2/files/"):
+            return files.api(self.root.parent, path.removeprefix("/v2/files/"), body)
         channel = body.get("channel", "")
         if not isinstance(channel, str) or not re.fullmatch(r"[0-9]{3}", channel) or channel == "000":
             raise ValueError("invalid channel")

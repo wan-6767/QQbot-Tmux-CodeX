@@ -1,7 +1,7 @@
 services:
   bot:
     build:
-      context: .
+      context: ..
       target: runtime
     network_mode: host
     restart: unless-stopped

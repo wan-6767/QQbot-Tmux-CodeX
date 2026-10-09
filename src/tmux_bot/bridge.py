@@ -92,10 +92,51 @@ KEYS = {
     "tab": "Tab", "space": "Space", "backspace": "BSpace", "delete": "DC",
     "home": "Home", "end": "End", "pgup": "PPage", "pgdn": "NPage",
 }
+KEY_NAMES = {
+    **KEYS,
+    "return": "Enter", "escape": "Escape", "bs": "BSpace", "bspace": "BSpace",
+    "del": "DC", "dc": "DC", "insert": "IC", "ins": "IC", "ic": "IC",
+    "pageup": "PPage", "ppage": "PPage", "pagedown": "NPage", "npage": "NPage",
+    "btab": "BTab", "backtab": "BTab", "plus": "+", "minus": "-",
+    **{f"f{i}": f"F{i}" for i in range(1, 25)},
+}
 
 
 class RelayError(Exception):
     pass
+
+
+def normalize_key(name: str) -> str:
+    """Validate keyboard notation before tmux can fall back to literal text."""
+    if not isinstance(name, str) or not name or len(name) > 80:
+        raise RelayError("按键格式：key enter、key F5、key ctrl+c、key ctrl+shift+left。")
+    if len(name) == 1 and 33 <= ord(name) <= 126:
+        return name
+    modifiers = set()
+    rest = name.strip()
+    aliases = {"ctrl": "C", "control": "C", "c": "C", "alt": "M", "meta": "M", "option": "M", "m": "M", "shift": "S", "s": "S"}
+    while (match := re.match(r"(ctrl|control|alt|meta|option|shift|c|m|s)[+-]", rest, re.I)):
+        modifier = aliases[match[1].lower()]
+        if modifier in modifiers:
+            raise RelayError("组合键不能重复修饰键。")
+        modifiers.add(modifier)
+        rest = rest[match.end():]
+    key = KEY_NAMES.get(rest.lower())
+    if key is None and len(rest) == 1 and 33 <= ord(rest) <= 126:
+        key = rest
+    if key is None:
+        raise RelayError("未知按键；支持的按键：字母/数字/符号、F1–F24、方向/编辑键及ctrl/alt/shift组合。")
+    if "S" in modifiers and key == "Tab":
+        key = "BTab"
+        modifiers.remove("S")
+    elif "S" in modifiers and len(key) == 1:
+        plain = "`1234567890-=[]\\;',./"
+        shifted = '~!@#$%^&*()_+{}|:"<>?'
+        key = key.upper() if key.isalpha() else dict(zip(plain, shifted)).get(key, key)
+        modifiers.remove("S")
+    if "C" in modifiers and len(key) == 1 and key.isalpha():
+        key = key.lower()
+    return "".join(m + "-" for m in ("C", "M", "S") if m in modifiers) + key
 
 
 class PaneLocks:
@@ -224,15 +265,13 @@ class Tmux:
             self.key(pane, "enter")
 
     def key(self, pane: str, name: str) -> None:
-        key = KEYS.get(name.lower())
-        if not key:
-            raise RelayError("支持的按键：" + "、".join(KEYS))
+        key = normalize_key(name)
         if key == "Enter":
             # Separate submission from the TUI's fast-paste detection window.
             remaining = 0.25 - (time.monotonic() - self.text_sent_at.get(pane, 0.0))
             if remaining > 0:
                 time.sleep(remaining)
-        self.run("send-keys", "-t", pane, key)
+        self.run("send-keys", "-t", pane, "--", key)
 
 
 def command(text: str) -> tuple[str, str] | None:
@@ -244,7 +283,7 @@ def command(text: str) -> tuple[str, str] | None:
     if value.lower().startswith(("#tmux ", "/tmux ")):
         rest = value[6:].strip()
         verb, _, arg = rest.partition(" ")
-        verb = {"button": "button", "pick": "pick", "help": "help", "ls": "list", "select": "enter", "screen": "screen", "list100": "screen100", "screen100": "screen100", "next": "next", "key": "key",
+        verb = {"button": "button", "pick": "pick", "help": "help", "ls": "list", "select": "enter", "screen": "screen", "list100": "screen100", "screen100": "screen100", "tail": "tail", "next": "next", "key": "key",
                 "type": "type", "send": "send", "exit": "exit", "reconnect": "reconnect"}.get(verb.lower(), "help")
         return verb, arg
     return None
@@ -597,6 +636,10 @@ class Relay:
                 if not any(p["identity"] == candidate["identity"] and p["pane_id"] == candidate["pane_id"] for p in self.tmux.panes()):
                     raise RelayError("列表中的窗格已关闭或被替换，请重新 /tmux ls。")
                 return self._enter(candidate)
+            if verb == "tail":
+                if not re.fullmatch(r"[0-9]{1,4}", arg) or not 1 <= int(arg) <= 5000:
+                    raise RelayError("快照行数范围：1–5000。")
+                return self._snapshot(self._selected(), "", int(arg), initial_context=True)
             if verb in {"screen", "screen100"}:
                 try:
                     lines = 100 if verb == "screen100" else int(arg or "40")
@@ -623,7 +666,7 @@ class Relay:
             pane = self._selected()
             self.epoch += 1
             self.tmux.send(pane["pane_id"], text)
-        submitted = parsed is None or parsed[0] == "send" or (parsed[0] == "key" and parsed[1].strip().lower() == "enter")
+        submitted = parsed is None or parsed[0] == "send" or (parsed[0] == "key" and normalize_key(parsed[1].strip()) == "Enter")
         if submitted:
             self.input_serial += 1
         action = "已填入，**未回车**；`/tmux key enter` 提交。" if parsed and parsed[0] == "type" else "已输入，等待新增输出。"
@@ -657,7 +700,7 @@ class Relay:
         return result
 
     def _snapshot(self, pane: dict, message: str, lines: int = 40, initial_context: bool = False) -> dict:
-        baseline = self.tmux.capture(pane["pane_id"], 1000)
+        baseline = self.tmux.capture(pane["pane_id"], max(1000, lines))
         result = self._response(message)
         result.update(target=pane["target"], screen_key=pane["identity"], baseline=baseline,
                       screen="\n".join(baseline.splitlines()[-lines:]),

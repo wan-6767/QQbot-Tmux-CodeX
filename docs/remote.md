@@ -2,7 +2,7 @@
 
 ## 配置
 
-一个bot可同时连接本机及多台远程服务器。在宿主桥接的普通用户下建立 `instances/<name>/data/tmux-relay/hosts.json`，参考根目录 `hosts.example.json`：
+一个bot可同时连接本机及多台远程服务器。在宿主桥接的普通用户下建立 `instances/<name>/data/tmux-relay/hosts.json`，参考`deploy/hosts.example.json`：
 
 ```json
 {
@@ -49,7 +49,7 @@ systemctl --user restart qq-tmux-bridge-default.service
 /tmux ls
 /tmux sel 012 ent
 /tmux sel 012 检查训练进度
-/tmux sel 012 list100
+/tmux sel 012 tail 100
 /tmux sel 012 ext
 ```
 
