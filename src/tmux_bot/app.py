@@ -249,6 +249,11 @@ class TerminalAdapter(QQAdapter):
     async def _stt_voice_attachment(self, *args, **kwargs):
         return None
 
+    async def _process_quoted_context(self, data):
+        # Quotes select a terminal in MultiGateway. Do not prepend the old
+        # output or re-download its attachments into the new user input.
+        return {"quote_block": "", "image_urls": [], "image_media_types": []}
+
     async def _process_attachments(self, attachments):
         # Treat voice as a file rather than invoking transcription or a model.
         normalized = [{**item, "content_type": "application/octet-stream",

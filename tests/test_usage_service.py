@@ -86,6 +86,17 @@ class CommandTests(unittest.IsolatedAsyncioTestCase):
             await handler.task
         self.assertEqual(adapter.send.await_count, 1)
 
+    async def test_revoked_authorization_also_suppresses_refresh_failure_reply(self):
+        authorized = True
+        handler = command.UsageCommand(lambda event: authorized)
+        adapter = SimpleNamespace(send=AsyncMock(return_value=SimpleNamespace(success=True)))
+        event = SimpleNamespace(source=SimpleNamespace(chat_id="group"), message_id="revoked-error")
+        with patch.object(command, "fetch_usage", side_effect=RuntimeError("refresh failed")):
+            await handler.handle(event, adapter)
+            authorized = False
+            await handler.task
+        self.assertEqual(adapter.send.await_count, 1)
+
     async def test_duplicate_and_concurrent_queries_do_not_double_refresh(self):
         handler = command.UsageCommand()
         adapter = SimpleNamespace(send=AsyncMock(return_value=SimpleNamespace(success=True)))

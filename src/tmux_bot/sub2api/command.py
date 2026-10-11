@@ -155,4 +155,5 @@ class UsageCommand:
                         len(data.get("accounts", [])), bool(result.success))
         except Exception as exc:
             logger.warning("Usage command failed (%s)", type(exc).__name__)
-            await adapter.send(event.source.chat_id, "## Sub2API 额度\n\n刷新失败，请稍后再试。", reply_to=event.message_id)
+            if self.authorized(event):
+                await adapter.send(event.source.chat_id, "## Sub2API 额度\n\n刷新失败，请稍后再试。", reply_to=event.message_id)

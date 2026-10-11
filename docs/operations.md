@@ -30,7 +30,7 @@ tar -czf backups/default-before-upgrade.tar.gz instances/default
 
 git fetch --tags
 # 审查对应版本后再切换，不覆盖自己未提交的改动。
-git switch --detach v0.2.2
+git switch --detach v0.2.3
 python3 scripts/manage.py configure default \
   --socket "$(tmux display-message -p '#{socket_path}')" \
   --tmux-binary "$(command -v tmux)"

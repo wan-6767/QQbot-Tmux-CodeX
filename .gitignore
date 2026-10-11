@@ -19,6 +19,7 @@ owner.json
 pairing*.json
 group*.json
 delivery.json
+reply-targets.json
 token
 backups/
 node_modules/

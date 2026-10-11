@@ -29,7 +29,7 @@
     toast.textContent = message; toast.hidden = false;
     clearTimeout(toastTimer); toastTimer = setTimeout(() => { toast.hidden = true; }, 2800);
   }
-  function heading(title, text, eyebrow = 'QQBOT-TMUX / 0.2.2') {
+  function heading(title, text, eyebrow = 'QQBOT-TMUX / 0.2.3') {
     return `<div class="page-heading"><div class="eyebrow">${eyebrow}</div><h1>${title}</h1><p class="subheading">${text}</p></div>`;
   }
   function codeTool(label, key) {
@@ -118,8 +118,8 @@
     ['窗格', '/tmux ls', '本地及远端窗格、编号和占用情况', '固定001–999，不随列表排序变化'],
     ['窗格', '/tmux sel 001 ent', '接入或重连这一窗格', '返回100行并持续追加，可同时接入多个'],
     ['窗格', '/tmux sel 001 ext', '仅断开这一连接', '其他编号及终端任务继续运行'],
-    ['输入', '/tmux sel 001 send 文字', '原样输入指定终端，并自动回车', '所有输入都需要三位编号，发送内容使用send'],
-    ['输入', '/tmux sel 001 send /model', '向终端输入程序命令', 'bot不调用模型、不代选菜单；/goal resume也需加编号和send'],
+    ['输入', '/tmux sel 001 send 文字', '原样输入指定终端，并自动回车', '也可引用bot带编号的终端回复，直接发送新文字；群里仍需@bot'],
+    ['输入', '/tmux sel 001 send /model', '向终端输入程序命令', '引用终端回复时可直接发/model；未引用时需编号和send'],
     ['输入', '/tmux sel 001 type 文字', '只输入，不回车', '可继续输入或单独发送key enter'],
     ['输入', '/tmux sel 001 send ent', '把保留词作为普通文字输入', 'ent是接入，ext是断开，tail 100是快照'],
     ['按键', '/tmux sel 001 key enter', '回车确认', '一次发送一个按键，不支持重复次数'],
@@ -139,7 +139,7 @@
     ['群聊', '/group unbind', '私聊解除群绑定', '先在原群对所有连接执行/tmux sel 编号 ext'],
   ];
   function commandView() {
-    main.innerHTML = heading('指令手册', '群里每条指令先 @bot；所有输入带三位编号，多个终端独立转发。') +
+    main.innerHTML = heading('指令手册', '群里先 @bot；输入带编号和send，或引用终端回复直接写新文字。') +
       `<div class="command-controls"><div class="tabs" aria-label="指令分类">${['全部', '窗格', '输入', '按键', '屏幕', '群聊'].map(c => `<button data-category="${c}" aria-pressed="${category === c}">${c}</button>`).join('')}</div><label class="search">${icon('search')}<input id="command-search" type="search" placeholder="搜索指令或用途" aria-label="搜索指令或用途"></label></div><div id="command-list" aria-live="polite"></div><p class="code-caption">${icon('info')}选择菜单整体回显；自动追加只转发正文。429 / 5xx 错误不会隐藏。</p>`;
     document.querySelector('#command-search').value = query;
     document.querySelector('#command-search').addEventListener('input', e => { query = e.target.value; commandList(); });

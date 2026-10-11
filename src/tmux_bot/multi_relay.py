@@ -15,6 +15,7 @@ from gateway.session import SessionSource
 from . import owner, terminal_relay as text, terminal_files
 from .multiplex import HELP as TMUX_HELP, parse
 from .bridge import RelayError
+from .reply_targets import ReplyTargets
 from .sub2api.command import UsageCommand
 
 logger = logging.getLogger("qq_tmuxbot.multi")
@@ -23,6 +24,7 @@ HELP = """## QQbot-Tmux
 
 **终端** · `/tmux ls` 查看编号，`/tmux help` 查看操作。
 接入：`/tmux sel 001 ent`；发送：`/tmux sel 001 send 文字`；退出：`/tmux sel 001 ext`。
+引用带编号的终端回复，直接发送文字即可输入该终端并回车。
 
 **文件** · 上传后返回绝对路径，`/file help` 查看详情。
 下载：`/file dl /绝对路径`；清理上传缓存：`/file rm`。
@@ -151,6 +153,8 @@ class Channel:
                     return False
                 result = await adapter.send_document(self.source["chat_id"], str(path),
                     caption=f"[{label}] 完整终端文本（未拆分或截断）", file_name=f"terminal-{self.id}.txt", reply_to=None)
+            self.gateway.remember_reply(result, self.source, self.id,
+                                        f"[{label}] 完整终端文本（未拆分或截断）")
             return await self.gateway.accepted(result, self.id, token)
         except Exception:
             logger.warning("Terminal %s attachment failed; retaining frame", self.id)
@@ -369,6 +373,7 @@ class MultiGateway:
         self.channels = {}
         self.send_lock = asyncio.Lock()
         self.start_task = None
+        self.reply_targets = ReplyTargets()
         self.usage_command = UsageCommand(lambda event: self._is_user_authorized_for_source(event.source))
 
     def _is_user_authorized_for_source(self, source):
@@ -397,12 +402,24 @@ class MultiGateway:
                 logger.warning("Terminal %s delivery activity not recorded", channel)
         return success
 
+    def remember_reply(self, result, source, channel, message):
+        if channel:
+            try:
+                self.reply_targets.note(result, source, channel, message)
+            except (OSError, ValueError):
+                # Do not resend an already accepted message if index storage
+                # fails; keep delivery progress independent of this shortcut.
+                logger.warning("Terminal reply shortcut could not be saved")
+
     async def send(self, source, message, channel="", token="", reply_to=None):
         if not self.authorized(source):
             return False
         try:
             async with self.send_lock:
+                if not self.authorized(source):
+                    return False
                 result = await self.adapter.send(source["chat_id"], message, reply_to=reply_to)
+                self.remember_reply(result, source, channel, message)
             return await self.accepted(result, channel, token)
         except Exception:
             logger.warning("QQ multi-terminal send failed; preserving pending output")
@@ -537,6 +554,21 @@ class MultiGateway:
         if value.lower() in {"/tmux help", "/tmux"}:
             await self.send(source, TMUX_HELP, reply_to=reply_to)
             return
+        # Bot commands keep their route even when the user quotes a terminal.
+        # Other text (including /model and /goal) is literal terminal input.
+        bot_command = (value.split(maxsplit=1) or [""])[0].lower() in {
+            "/help", "/tmux", "/file", "/files", "/download", "/group", "/sub2api"}
+        if not bot_command:
+            quoted, number = self.reply_targets.resolve(raw, source)
+            if quoted:
+                if not number:
+                    await self.send(source, "未识别所引用的终端消息，请引用本bot带编号的回复，或用 /tmux sel 编号 send 内容。",
+                                    reply_to=reply_to)
+                    return
+                if not value:
+                    await self.send(source, f"{number} · 请在引用回复中输入要发送的文字。", reply_to=reply_to)
+                    return
+                value = f"/tmux sel {number} send {value}"
         try:
             verb, number, argument = parse(value)
         except RelayError as exc:

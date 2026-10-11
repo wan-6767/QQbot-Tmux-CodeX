@@ -21,6 +21,7 @@ QQ私聊 / 已绑定群的本人@消息
       │    → MultiRelay：固定编号、收据、独立租约
       │    → 本地tmux / 严格密钥SSH → 远端tmux
       │    ← 每编号Channel持续观察 → 清洗 → 段落 → QQ
+      ├ 引用终端回复 + 新文字 → 同聊天投递索引 → /tmux sel 编号 send 新文字
       ├ 附件 / /file dl / /file rm → 登记缓存与受限快照
       └ /sub2api usage → 可选的独立宿主额度服务
 ```
@@ -35,6 +36,7 @@ QQ私聊 / 已绑定群的本人@消息
 | 指令格式、编号、租约和远端清单 | `multiplex.py`、`remote.py` | `test_multi.py` |
 | 终端按键与实际输入 | `bridge.py` | `test_multi.py`、`test_relay.py` |
 | 逐窗格监听、段落投递、重试恢复 | `multi_relay.py` | `test_multi.py` |
+| QQ引用回复、目标匹配、旧内容隔离 | `reply_targets.py`、`multi_relay.py`、`app.py` | `test_reply_targets.py`、`test_quote_route.py` |
 | 噪音、软换行、菜单与结束提示 | `terminal_relay.py` | `test_relay.py` |
 | 上传登记、下载快照和缓存清理 | `terminal_files.py`、`files.py` | `test_files.py` |
 | 最新额度和积分 | `sub2api/` | `test_usage_reader.py`、`test_usage_service.py` |
@@ -50,6 +52,7 @@ QQ私聊 / 已绑定群的本人@消息
 - `tmux-relay/multi.sqlite3`保存永久编号、聊天目的地和输入收据；编号不回收。
 - `tmux-relay/channels/编号/bridge.sqlite3`保存该终端的输入状态和静默计时。
 - `tmux-relay/channels/编号/delivery.json`保存QQ投递基线、尚未完成的正文及进度。
+- `tmux-relay/reply-targets.json`保存最近2048条成功终端投递的消息ID、聊天来源、编号和内容摘要哈希，权限0600，不存原始终端正文；用于引用回复时匹配目标。损坏或不可读时仅停用旧引用匹配，不影响显式编号路由。
 - 上传索引只记录缓存文件身份；下载通过宿主创建临时快照，发送结束后释放。
 
 所有状态位于初始化实例的`data/`，升级应成套备份。恢复订阅会重新授权，并继续各自的观察任务；SSH失败不把旧编号分配给别的窗格。`tail N`仅重置指定连接的追加基线，`ext`不停止终端任务。
