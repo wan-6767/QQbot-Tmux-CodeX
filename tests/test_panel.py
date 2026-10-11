@@ -6,7 +6,12 @@ import unittest
 
 from tmux_bot import qq_commands as panel
 
-COMMANDS = ("/tmux ls", "/tmux sel", "/tmux help")
+COMMANDS = (
+    "/tmux ls", "/tmux sel", "/tmux send", "/tmux key", "/tmux tail",
+    "/tmux ent", "/tmux ext", "/tmux type", "/file dl", "/file rm",
+    "/sub2api usage", "/help", "/tmux help", "/file help",
+    "/group status", "/group bind", "/group unbind",
+)
 
 
 class PanelTests(unittest.IsolatedAsyncioTestCase):
@@ -15,17 +20,17 @@ class PanelTests(unittest.IsolatedAsyncioTestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
 
-    def test_exact_three_commands_keep_owner_private_scope(self):
+    def test_complete_catalog_keeps_owner_private_scope(self):
         payload = panel.panel_payload("owner")
         self.assertEqual(panel.PANEL_COMMANDS, COMMANDS)
-        self.assertEqual([i["name"] for i in payload["panel"]["items"]], ["tmux ls", "tmux sel", "tmux help"])
+        self.assertEqual([i["name"] for i in payload["panel"]["items"]], [name[1:] for name in COMMANDS])
         self.assertEqual(payload["scope"], "c2c")
         self.assertEqual(payload["target_type"], "specific")
         self.assertEqual(payload["user_openids"], ["owner"])
         self.assertNotIn("group_openids", payload)
 
     async def test_existing_panel_is_updated_then_read_back_without_duplicate_creation(self):
-        detail = {"panel_id": "original", **panel.panel_payload("owner", ("/help", "/tmux ls"))}
+        detail = {"panel_id": "original", **panel.panel_payload("owner", ("/tmux ls", "/tmux sel", "/tmux help"))}
         calls = []
         async def api(method, path, **kwargs):
             calls.append((method, path))

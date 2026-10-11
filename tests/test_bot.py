@@ -119,6 +119,36 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         return SimpleNamespace(source=SimpleNamespace(platform=Platform.QQBOT, user_id=user, chat_id=chat, chat_type=kind),
                                text=text, raw_message={"content": text}, message_id="fixture-message")
 
+    async def test_startup_expands_existing_panel_and_does_not_restore_three_commands(self):
+        panel = app.qq_commands
+        detail = {"panel_id": "existing", **panel.panel_payload("owner", ("/tmux ls", "/tmux sel", "/tmux help"))}
+        mutations = []
+
+        async def request(method, url, **kwargs):
+            if url.endswith("/v2/panels"):
+                payload = {"records": [detail], "is_end": True}
+            elif method == "PUT":
+                mutations.append((method, url))
+                detail["panel"] = kwargs["json"]["panel"]
+                payload = {}
+            else:
+                payload = detail
+            return SimpleNamespace(is_error=False, status_code=200, json=lambda: payload)
+
+        adapter = app.TerminalAdapter(PlatformConfig())
+        client = SimpleNamespace(request=AsyncMock(side_effect=request))
+        with patch.object(adapter, "_require_http_client", return_value=client), \
+                patch.object(adapter, "_auth_headers", AsyncMock(return_value={})):
+            await adapter.sync_panel()
+            await adapter.sync_panel()
+        self.assertEqual(len(mutations), 1)
+        self.assertEqual(mutations[0][0], "PUT")
+        self.assertEqual(len(detail["panel"]["items"]), 17)
+        self.assertEqual([item["name"] for item in detail["panel"]["items"]],
+                         [name[1:] for name in panel.PANEL_COMMANDS])
+        self.assertEqual(panel.selected_commands(owner.home() / "qq-command-panel", "owner"),
+                         panel.PANEL_COMMANDS)
+
     async def test_unauthorized_and_group_events_never_reach_bridge(self):
         with patch.object(app.terminal_relay, "handle") as handle, patch.object(
                 app.terminal_relay, "record_activity", AsyncMock()) as activity:

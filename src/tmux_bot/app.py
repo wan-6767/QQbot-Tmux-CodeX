@@ -285,11 +285,7 @@ class TerminalAdapter(QQAdapter):
             await terminal_relay.record_activity(scope, "bot:" + message_id if message_id else "")
 
     async def sync_panel(self):
-        # Reuse audited owner-scoped panel API; this app gets no planning/agent commands.
-        qq_commands.PANEL_REMARK = "qq-tmuxbot-shortcuts-v1"
-        qq_commands.PANEL_COMMANDS = ("/tmux ls", "/tmux sel", "/tmux help")
-        qq_commands.COMMANDS = tuple((name, "查看终端帮助" if name == "/help" else description, target)
-                                    for name, description, target in qq_commands.COMMANDS)
+        # Startup and the registration CLI use the same owner-scoped catalog.
         async def api(method, path, *, body=None, params=None):
             from gateway.platforms.qqbot.constants import API_BASE
             response = await self._require_http_client().request(

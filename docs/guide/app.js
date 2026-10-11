@@ -29,7 +29,7 @@
     toast.textContent = message; toast.hidden = false;
     clearTimeout(toastTimer); toastTimer = setTimeout(() => { toast.hidden = true; }, 2800);
   }
-  function heading(title, text, eyebrow = 'QQBOT-TMUX / 0.2.3') {
+  function heading(title, text, eyebrow = 'QQBOT-TMUX / 0.2.4') {
     return `<div class="page-heading"><div class="eyebrow">${eyebrow}</div><h1>${title}</h1><p class="subheading">${text}</p></div>`;
   }
   function codeTool(label, key) {
@@ -112,7 +112,7 @@
       ].map(([i, title, text]) => `<div class="feature">${icon(i)}<h3>${title}</h3><p>${text}</p></div>`).join('')}</div><section class="section"><h2>先把接入做好</h2><figure class="preview"><img src="assets/workbench.png" width="1440" height="1000" alt="QQbot-Tmux 接入工作台的实际桌面截图" loading="lazy"><figcaption>实际接入工作台 · 实例命令生成与逐步检查</figcaption></figure></section><section class="section"><h2>轻量，不代表没有边界</h2><p class="muted">不调用大模型，不需要模型 API Key。支持本机文件收发，可选插件查询Sub2API额度。转发来自终端屏幕采样，不是程序原生事件流；QQ 主动消息权限仍受平台约束。</p><div class="link-row"><a href="#security">安全边界 ${icon('arrow-right')}</a><a href="#troubleshooting">常见问题 ${icon('arrow-right')}</a></div></section></div>`;
   }
   const entries = [
-    ['全部', '/help', '查看全局功能总览', '终端、文件、额度与群绑定；面板为/tmux ls、/tmux sel、/tmux help'],
+    ['全部', '/help', '查看全局功能总览', '输入框/面板提供17个入口：终端操作、文件收发、额度、帮助和群绑定'],
     ['窗格', '/tmux sel', '编号和操作的输入前缀', '补上001 ent或001 send 消息后再发送'],
     ['全部', '/tmux help', '查看终端操作帮助', '所有公开指令统一使用 /'],
     ['窗格', '/tmux ls', '本地及远端窗格、编号和占用情况', '固定001–999，不随列表排序变化'],
@@ -176,7 +176,7 @@
       ['连接不到 tmux，或列表里没有窗格', '桥接用户必须与 tmux 用户一致。检查生成的 service 中 --socket 路径确实对应已有 socket，服务和 Compose 实例名称、端口、令牌必须配套。不要改成 root 或将端口开放到公网。'],
       ['显示窗格被其他 bot 占用', '互斥正在生效。先在原 bot /tmux sel 编号 ext，再用目标 bot 连接；也可以选择不同窗格。双方静默 30 分钟会自动释放，停止原桥接进程也会释放内核锁。'],
       ['输出清洗不准确，或内容重复、遗漏', '这是终端屏幕采样，不是程序原生事件流。快速重复输出和未知 TUI 可能不易区分。先用 /tmux sel 编号 tail 100 核对，注意该命令会重置自动追加基线；提交经过脱敏的可复现片段，不上传真实终端历史。'],
-      ['手机输入 / 没有快捷命令提示', '面板需要平台能力及客户端同步。默认注册 /tmux ls、/tmux sel 和 /tmux help，注册失败不影响手动发送。群聊仍需 @bot，菜单按键使用 /tmux sel 编号 key 指令。'],
+      ['手机输入 / 没有快捷命令提示', '面板需要平台能力及客户端同步。默认注册17个常用入口，注册失败不影响手动发送。选 /tmux key 后补 enter sel 001；选 /file dl 后补绝对路径。群聊仍需 @bot，客户端同步可能有延迟。'],
       ['发送超时，是否应该重新发送？', '先查看 /tmux sel 编号 tail 100，确认终端是否已收到输入。桥接有输入收据查询，但如果最终状态仍未知，重复提交可能造成重复执行。不要为了测试把破坏性命令反复发送。'],
       ['Docker 或用户 systemd 提示权限不足', '按 Docker 官方文档配置普通用户权限；Docker 组本身具有高宿主权限。退出 SSH 后要常驻，可由管理员启用该用户 linger。不要 sudo 初始化，也不要将所有数据改成 777。'],
     ];

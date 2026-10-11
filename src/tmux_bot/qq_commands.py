@@ -19,10 +19,28 @@ COMMANDS = (
     ("/tmux list100", "查看最近100行完整上下文", "#tmux list100"),
     ("/tmux exit", "退出终端选择模式", "#tmux exit"),
     ("/tmux help", "查看终端操作帮助", "#tmux help"),
-    ("/help", "查看终端机器人帮助", "/help"),
+    ("/help", "查看全部功能和指令", "/help"),
+    ("/tmux send", "补文字和sel 编号，输入并回车", "#tmux send"),
+    ("/tmux key", "补按键和sel 编号", "#tmux key"),
+    ("/tmux tail", "补行数和sel 编号", "#tmux tail"),
+    ("/tmux ent", "补sel 编号，接入终端", "#tmux ent"),
+    ("/tmux ext", "补sel 编号，断开连接", "#tmux ext"),
+    ("/tmux type", "补文字和sel 编号，不回车", "#tmux type"),
+    ("/file dl", "下载文件，补绝对路径", "/file dl"),
+    ("/file rm", "清理登记的上传缓存", "/file rm"),
+    ("/file help", "查看文件收发帮助", "/file help"),
+    ("/sub2api usage", "刷新账号额度和积分", "/sub2api usage"),
+    ("/group status", "查看群绑定状态", "/group status"),
+    ("/group bind", "获取一次性群绑定指令", "/group bind"),
+    ("/group unbind", "解除群聊绑定", "/group unbind"),
 )
 ALIASES = {name: target for name, _description, target in COMMANDS}
-PANEL_COMMANDS = ("/tmux ls", "/tmux sel", "/tmux help")
+PANEL_COMMANDS = (
+    "/tmux ls", "/tmux sel", "/tmux send", "/tmux key", "/tmux tail",
+    "/tmux ent", "/tmux ext", "/tmux type", "/file dl", "/file rm",
+    "/sub2api usage", "/help", "/tmux help", "/file help",
+    "/group status", "/group bind", "/group unbind",
+)
 LEGACY_ALIASES = {"/tmux": "#tmux ls", "/list100": "#tmux list100", "/exit": "#tmux exit"}
 
 
